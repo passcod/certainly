@@ -18,12 +18,12 @@ matrix:
       env: TARGET=x86_64-unknown-linux-gnu
 
     # Extra targets for linux only
-    - os: linux
-      rust: stable
-      env: TARGET=i686-unknown-linux-musl
-    - os: linux
-      rust: stable
-      env: TARGET=x86_64-unknown-linux-musl
+    #- os: linux
+    #  rust: stable
+    #  env: TARGET=i686-unknown-linux-musl
+    #- os: linux
+    #  rust: stable
+    #  env: TARGET=x86_64-unknown-linux-musl
 
     # Non-critical but interesting for upcoming Rust changes
     - os: linux

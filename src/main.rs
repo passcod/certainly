@@ -1,20 +1,25 @@
+#![forbid(unsafe_code)]
+#![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
+
 extern crate clap;
 extern crate openssl;
 
 use clap::{App, Arg};
-use std::{io, path::PathBuf};
-use openssl::error::ErrorStack;
-use openssl::x509::{X509Builder, X509v3Context, X509NameBuilder};
 use openssl::asn1::Asn1Time;
-use openssl::nid::Nid;
-use openssl::ec::{EcGroup, EcKey};
-use openssl::pkey::{Private, PKey};
-use openssl::hash::MessageDigest;
 use openssl::bn::{BigNum, MsbOption};
-use openssl::x509::extension::{AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage,
-SubjectAlternativeName, SubjectKeyIdentifier as SubjectKey};
-use std::io::Write;
+use openssl::ec::{EcGroup, EcKey};
+use openssl::error::ErrorStack;
+use openssl::hash::MessageDigest;
+use openssl::nid::Nid;
+use openssl::pkey::{PKey, Private};
+use openssl::x509::extension::{
+    AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, SubjectAlternativeName,
+    SubjectKeyIdentifier as SubjectKey,
+};
+use openssl::x509::{X509Builder, X509NameBuilder, X509v3Context};
 use std::fs::File;
+use std::io::Write;
+use std::{io, path::PathBuf};
 
 #[derive(Debug)]
 enum Ernum {
@@ -46,22 +51,26 @@ fn main() -> Result<(), Ernum> {
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_HOMEPAGE"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(Arg::with_name("inspect")
-             .long("inspect")
-             .value_name("CERTIFICATE")
-             .help("Show information about a certificate")
+        .arg(
+            Arg::with_name("inspect")
+                .long("inspect")
+                .value_name("CERTIFICATE")
+                .help("Show information about a certificate"),
         )
-        .arg(Arg::with_name("std")
-             .long("std")
-             .help("Output to stdout instead of writing files")
+        .arg(
+            Arg::with_name("std")
+                .long("std")
+                .help("Output to stdout instead of writing files"),
         )
-        .arg(Arg::with_name("double-std")
-             .long("double-std")
-             .help("Output the key to stderr and the cert to stdout")
+        .arg(
+            Arg::with_name("double-std")
+                .long("double-std")
+                .help("Output the key to stderr and the cert to stdout"),
         )
-        .arg(Arg::with_name("DOMAIN")
-             .multiple(true)
-             .help("Every domain this certificate should support")
+        .arg(
+            Arg::with_name("DOMAIN")
+                .multiple(true)
+                .help("Every domain this certificate should support"),
         )
         .get_matches();
 
@@ -121,22 +130,29 @@ fn create(domains: Vec<&str>) -> Result<(String, Vec<u8>, Vec<u8>), Ernum> {
     cert.set_serial_number(serial.to_asn1_integer()?.as_ref())?;
 
     cert.append_extension(BasicConstraints::new().build()?)?;
-    cert.append_extension(KeyUsage::new()
-        .critical()
-        .non_repudiation()
-        .digital_signature()
-        .key_encipherment()
-        .build()?)?;
+    cert.append_extension(
+        KeyUsage::new()
+            .critical()
+            .non_repudiation()
+            .digital_signature()
+            .key_encipherment()
+            .build()?,
+    )?;
 
     fn ctx(cert: &X509Builder) -> X509v3Context {
         cert.x509v3_context(None, None)
     }
 
     let subjkey = SubjectKey::new().build(&ctx(&cert))?;
-    let authkey = AuthKey::new().keyid(false).issuer(false).build(&ctx(&cert))?;
+    let authkey = AuthKey::new()
+        .keyid(false)
+        .issuer(false)
+        .build(&ctx(&cert))?;
 
     let mut san = SubjectAlternativeName::new();
-    for dom in domains { san.dns(dom.into()); }
+    for dom in domains {
+        san.dns(dom.into());
+    }
     let san = san.build(&ctx(&cert))?;
 
     cert.append_extension(subjkey)?;

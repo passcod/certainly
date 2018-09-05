@@ -31,3 +31,27 @@ tar cvf "$out_dir/$name.tar" "$name"
 popd
 xz -f9 "$name.tar"
 
+if [[ "$target" == *-linux-gnu ]]; then
+    mkdir -p "$build_dir/deb/$name"
+    pushd "$build_dir/deb/$name"
+
+    mkdir -p DEBIAN usr/bin usr/share/man/man1
+    cp "../../$name/certainly" usr/bin/
+    cp "../../$name/certainly.1" usr/share/man/man1/
+    cat <<CONTROL > DEBIAN/control
+Package: certainly
+Version: ${tag/v/}
+Architecture: amd64
+Maintainer: Félix Saparelli <aur@passcod.name>
+Installed-Size: $(du -d1 usr | tail -n1 | cut -d\t -f1)
+Homepage: https://github.com/passcod/certainly
+Description: Create self-signed certificates with ease.
+ Creates a self-signed certficate and key with one or more domains associated, for web development use.
+CONTROL
+	cd ..
+	fakeroot dpkg -b "$name"
+	mv "certainly-$tag-$target.deb" "$out_dir/"
+	popd
+fi
+
+rm -rf "$build_dir"

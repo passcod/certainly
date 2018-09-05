@@ -16,9 +16,9 @@ use openssl::x509::extension::{
     AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, SubjectAlternativeName,
     SubjectKeyIdentifier as SubjectKey,
 };
-use openssl::x509::{X509Builder, X509NameBuilder, X509v3Context};
+use openssl::x509::{X509, X509Builder, X509NameBuilder, X509v3Context};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::{io, path::PathBuf};
 
 #[derive(Debug)]
@@ -172,6 +172,53 @@ fn create(domains: Vec<&str>) -> Result<(String, Vec<u8>, Vec<u8>), Ernum> {
 }
 
 fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
-    println!("{:?}", filepath);
+    let mut file = File::open(filepath)?;
+    let mut buf = vec![];
+    file.read_to_end(&mut buf)?;
+    let cert = X509::from_pem(&buf)?;
+
+    let mut cname = None;
+    let mut subjname: Vec<String> = vec![];
+    for subj in cert.subject_name().entries() {
+        let name = subj.object().nid().long_name()?;
+        let data = subj.data().as_utf8()?;
+        subjname.push(format!("{}", name));
+        subjname.push(format!("{}", data));
+        if name == "commonName" {
+            cname = Some(data);
+        }
+    }
+
+    let mut issuname: Vec<String> = vec![];
+    for issu in cert.issuer_name().entries() {
+        issuname.push(format!("{}", issu.object().nid().long_name()?));
+        issuname.push(format!("{}", issu.data().as_utf8()?));
+    }
+
+    if subjname == issuname {
+        println!("Self-signed certificate");
+    } else {
+        println!("Certificate (not self-signed!)");
+    }
+
+    println!("Created on:   {}", cert.not_before());
+    println!("Expires on:   {}", cert.not_after());
+
+    match cert.subject_alt_names() {
+        None => match cname {
+            Some(name) => println!("Domains:\n - {}", name),
+            None => println!("No domains???"),
+        },
+        Some(alts) => {
+            println!("Domains:");
+            for alt in alts {
+                match alt.dnsname() {
+                    Some(dns) => println!(" - {}", dns),
+                    None => {}
+                };
+            }
+        }
+    };
+
     Ok(())
 }

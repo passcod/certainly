@@ -2,7 +2,7 @@ environment:
   global:
     PROJECT_NAME: certainly
   matrix:
-    - TARGET: x86_64-pc-windows-gnu
+    - TARGET: x86_64-pc-windows-msvc
       CHANNEL: stable
 
 # Not MSBuild

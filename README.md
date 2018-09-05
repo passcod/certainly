@@ -29,7 +29,11 @@ With Cargo: `cargo install certainly`
 
 ### From package manager
 
-Nothing yet, but accepting contributions!
+#### [Arch Linux (AUR)](https://aur.archlinux.org/packages/certainly-bin)
+
+    yay -S certainly-bin
+
+Accepting contributions for more!
 
 
 ## Options

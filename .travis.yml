@@ -47,7 +47,7 @@ before_deploy: ./.package $TRAVIS_TAG $TARGET
 deploy:
   provider: releases
   api_key:
-    secure: LXi48d/kJVntJKV0SjKk9HHMc3IzxQt+3YY2PDDB7toQmVOf6mVdaRHSLQ5p08g6R4/z2hzsqDaKC7lvy1E5BuQotMJ9b4uw5ZiAE534CHr2IgQIwTJvV4gweC9fwZk8Ln8k3PY0Z9wLy/tzWaZHo9WK4IqjB4XrTOhR2vDoaq0=
+    secure: uVuIV+zn9iR7nWipZiKt85MOiTZ//vuXLAd2XA/iWv6v+EYAXi80zwb71yfHwPOwWz0w324ZuHDF88Bz+hmGuLChWLKc+8RXLHDsORvVs+oU20H4QfvcgPeUKW1PAzB4niqQ8LbiM6LELqR1f95oK88GHboiBueQ5d6mibUFLIr0OTgEspX4wavGj/pZjUQ8DeVO6Xksoa6ymvCbArmgSE+NIGt3hjGZR93spo8bZfPEguxKQPCoSxknofYZE7FfQY+s4cyzTapf5hXI59vyyFajVRwR8I9GVmasj35/pUA1Eru5WBt5DP7kVwgnRLAEhu6Qs/MuAclW3iCTMlzjdNNyxkRMfPuyL/e1qP2ExKteWuIdZcTxfZG0Yh64a59tE9BfiAQ1Rjvui0NwyL6+W7Dh/0a3Cx3tu6mh3thAXuigXBQS6vBllSccFaC0s2PuT9mYM95nis2JmvaRc9Z4aCyyr2RbXI+gdoC4ogZAz0JfGfIXI31UBX+L/2eIDkeoNBIchcL9vb9ezIAxF5DixE7rirfMb2KF6LBxybWMVprkS/LkQcpf97771D8IYf4wL15otAJzm4UT0qcCGz9VWvU/OWzPiRazbJrDGLxN2VudAaxVgWJizsIwUf4v65pPRDwdR1wQhRuW7Nfr9IkYwe60Zxqs6EXAKNU48PMEI3A=
   file_glob: true
   file: ${PROJECT_NAME}-${TRAVIS_TAG}-${TARGET}.*
   skip_cleanup: true

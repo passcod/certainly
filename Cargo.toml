@@ -17,4 +17,4 @@ travis-ci = { repository = "passcod/certainly" }
 
 [dependencies]
 clap = "2.32.0"
-openssl = "0.10.11"
+openssl = { version = "0.10.11", features = ["vendored"] }

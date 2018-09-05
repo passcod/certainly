@@ -1,6 +1,20 @@
 [package]
 name = "certainly"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Félix Saparelli <felix@passcod.name>"]
+description = "The easiest way to create self-signed certificates. Ever."
+license = "Artistic-2.0"
+
+homepage = "https://github.com/passcod/certainly"
+repository = "https://github.com/passcod/certainly"
+keywords = ["ssl", "certificate", "self-signed", "openssl"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "README.md"
+
+[badges]
+appveyor = { repository = "passcod/certainly" }
+travis-ci = { repository = "passcod/certainly" }
 
 [dependencies]
+clap = "2.32.0"
+openssl = "0.10.11"

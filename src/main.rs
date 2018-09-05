@@ -51,11 +51,11 @@ fn main() -> Result<(), Ernum> {
              .value_name("CERTIFICATE")
              .help("Show information about a certificate")
         )
-        .arg(Arg::with_name("stdout")
+        .arg(Arg::with_name("std")
              .long("std")
              .help("Output to stdout instead of writing files")
         )
-        .arg(Arg::with_name("stderrout")
+        .arg(Arg::with_name("double-std")
              .long("double-std")
              .help("Output the key to stderr and the cert to stdout")
         )
@@ -76,7 +76,6 @@ fn main() -> Result<(), Ernum> {
 
     let (name, key, cert) = create(args.values_of("DOMAIN").unwrap().collect())?;
     // unwrap is safe because it will have been caught by is_present()
-
 
     if args.is_present("double-std") {
         io::stderr().write(&key)?;

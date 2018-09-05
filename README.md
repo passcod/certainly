@@ -21,7 +21,7 @@ Domains:
 
 ### Binary download (Windows, Linux, macOS)
 
-Binaries are available [through GitHub Releases]().
+Binaries are available [through GitHub Releases](https://github.com/passcod/certainly/releases).
 
 ### From source
 

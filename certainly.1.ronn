@@ -1,0 +1,115 @@
+certainly(1) -- create self-signed certificates with ease
+==========================================================
+
+## SYNOPSIS
+
+certainly [`--std` | `--double-std`] <domain> [<domain>...]
+
+certainly --inspect <certificate>
+
+## DESCRIPTION
+
+Creates a self-signed certficate and key with one or more domains associated, for web development use.
+
+By default, files named after the first domain given are written in the current directory, but flags can be passed to output to standard pipes instead.
+
+The inspect option instead reads a certificate file and outputs terse information about it: whether it's self-signed, its dates, and the domains it covers.
+
+Files are written and read in PEM format.
+
+## OPTIONS
+
+* <domain>:
+A domain to add to the certificate. The first such domain will also be the certificate's _common name_.
+
+* `--std`:
+Outputs first the key then the certificate to STDOUT.
+
+* `--double-std`:
+Outputs the key to STDERR, and the certificate to STDOUT. This is useful to write both files to a custom location efficiently, such as: `certainly --double-std domain.test > test.crt 2> test.key`.
+
+* `--inspect` <certificate>:
+Reads the <certificate> (in PEM format), prints some information about it, and exits.
+
+## EXAMPLES
+
+Create a self-signed certificate for test.domain:
+
+    $ certainly test.domain
+    Writing test.domain.key
+    Writing test.domain.crt
+
+Create a self-signed certificate for several domains:
+
+    $ certainly test.domain test.place test.pizza
+    Writing test.domain.key
+    Writing test.domain.crt
+
+Output a new key and certificate:
+
+    $ certainly --std test.app
+    -----BEGIN PRIVATE KEY-----
+    MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg2yn3kvq3WzJv8F+V
+    BxZ+HCo73JQ7ABUrDDvBpUpexlehRANCAAR4gwky7IoIAdKwd3jSs7/VfrR0AsN9
+    LwYp0O988ZWGYhN+Dko7KuSrtYJ/kVBs+5iQnH2uK2OXKqpv5T8X/pUR
+    -----END PRIVATE KEY-----
+    -----BEGIN CERTIFICATE-----
+    MIICPzCCAeWgAwIBAgIUPQ+Sy8RPt2gt5jW5wS6FRIydakkwCgYIKoZIzj0EAwQw
+    QTELMAkGA1UEBhMCWloxCzAJBgNVBAgMAkFBMRIwEAYDVQQKDAlDZXJ0YWlubHkx
+    ETAPBgNVBAMMCHRlc3QuYXBwMB4XDTE4MDkwNTIxMTM1N1oXDTI4MDkwMjIxMTM1
+    N1owQTELMAkGA1UEBhMCWloxCzAJBgNVBAgMAkFBMRIwEAYDVQQKDAlDZXJ0YWlu
+    bHkxETAPBgNVBAMMCHRlc3QuYXBwMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE
+    eIMJMuyKCAHSsHd40rO/1X60dALDfS8GKdDvfPGVhmITfg5KOyrkq7WCf5FQbPuY
+    kJx9ritjlyqqb+U/F/6VEaOBujCBtzAJBgNVHRMEAjAAMA4GA1UdDwEB/wQEAwIF
+    4DAdBgNVHQ4EFgQU2jmj7l5rSw0yVb/vlWAYkK/YBwkwZgYDVR0jBF8wXaFFpEMw
+    QTELMAkGA1UEBhMCWloxCzAJBgNVBAgMAkFBMRIwEAYDVQQKDAlDZXJ0YWlubHkx
+    ETAPBgNVBAMMCHRlc3QuYXBwghQ9D5LLxE+3aC3mNbnBLoVEjJ1qSTATBgNVHREE
+    DDAKggh0ZXN0LmFwcDAKBggqhkjOPQQDBANIADBFAiBbaxLKxwnSWZy/3VzOOASs
+    9lz8YQWzc7NCESXzZTAHuAIhAOFKSelBXJEBsNLCtS86JNEvya+3XPWAL9R+O1jp
+    WMna
+    -----END CERTIFICATE-----
+
+Write a key and certificate to custom locations:
+
+    $ certainly --double-std test.space 2> moon-key.pem > moon-cert.pem
+
+Show some information about a certificate:
+
+    $ certainly --inspect test.ninja.crt
+    Self-signed certificate
+    Created on:   Sep  5 21:17:47 2018 GMT
+    Expires on:   Sep  2 21:17:47 2028 GMT
+    Domains:
+     - test.ninja
+     - test.green
+     - test.red
+     - test.technology
+     - rofl.lmao.lol
+
+Use OpenSSL to view all information about a certificate:
+
+    $ openssl x509 -text -in test.wtf.crt
+    Certificate:
+        Data:
+            Version: 3 (0x2)
+    ...
+
+## DETAILS
+
+Certificates are generated with a common subject of:
+
+* C (Country): `ZZ`
+
+* ST (State): `AA`
+
+* O (Organisation): `Certainly`
+
+They use elliptical curve cryptograpy using `prime256v1`, hashed with `SHA-512`.
+
+This generates small files (easier to inspect and manipulate) and uses algorithms that are well supported by modern tools (browsers, servers, etc) while being up-to-date with security best practices.
+
+## AUTHOR
+
+Félix Saparelli <https://passcod.name>
+
+Licensed under the _Artistic License 2.0_.

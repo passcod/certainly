@@ -37,7 +37,10 @@ matrix:
     - rust: nightly
   fast_finish: true
 
-before_script: rustup target add $TARGET || echo ok
+before_script:
+  - rustup target add $TARGET || echo ok
+  - gem install ronn
+
 script:
   - cargo check --target $TARGET
   - cargo build --target $TARGET

@@ -23,6 +23,7 @@ mkdir "$build_dir/$name"
 
 cp target/$target/release/certainly "$build_dir/$name/"
 cp LICENSE "$build_dir/$name/"
+ronn --roff --pipe certainly.1.ronn > "$build_dir/$name/certainly.1"
 
 pushd $build_dir
 strip "$name/certainly"

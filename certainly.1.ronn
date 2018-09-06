@@ -19,7 +19,7 @@ With the `--ca` option, issues a certificate signed by a "CA" instead. The CA ce
 
 The inspect option instead reads a certificate file and outputs terse information about it: whether it's self-signed, its dates, and the domains it covers.
 
-Files are written and read in PEM format.
+Files are written and read in PEM format. On Unix, file are written with 0600 permissions.
 
 ## OPTIONS
 
@@ -102,7 +102,7 @@ Use OpenSSL to view all information about a certificate:
     Certificate:
         Data:
             Version: 3 (0x2)
-    ...
+        (... much more data ...)
 
 Create a CA pair and sign a new certificate:
 

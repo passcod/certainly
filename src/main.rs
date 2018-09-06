@@ -18,7 +18,7 @@ use openssl::x509::extension::{
     SubjectKeyIdentifier as SubjectKey,
 };
 use openssl::x509::{X509, X509Builder, X509NameBuilder, X509Ref};
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::{io, path::PathBuf};
 
@@ -123,12 +123,20 @@ fn main() -> Result<(), Ernum> {
         let keyname = format!("{}.key", name);
         let crtname = format!("{}.crt", name);
 
+        let mut fs = OpenOptions::new();
+        fs.write(true).create(true).truncate(true);
+
+        #[cfg(unix)]
+        use std::os::unix::fs::OpenOptionsExt;
+        #[cfg(unix)]
+        fs.mode(0o600);
+
         eprintln!("Writing {}", keyname);
-        let mut keyfile = File::create(keyname)?;
+        let mut keyfile = fs.open(keyname)?;
         keyfile.write_all(&key)?;
 
         eprintln!("Writing {}", crtname);
-        let mut crtfile = File::create(crtname)?;
+        let mut crtfile = fs.open(crtname)?;
         crtfile.write_all(&cert)?;
     }
 

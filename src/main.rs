@@ -160,8 +160,6 @@ fn base_cert(name: &str, ca: Option<(&PKeyRef<Private>, &X509Ref)>) -> Result<X5
     serial.rand(159, MsbOption::MAYBE_ZERO, false)?;
     cert.set_serial_number(serial.to_asn1_integer()?.as_ref())?;
 
-    cert.append_extension(BasicConstraints::new().build()?)?;
-
     let subjkey = SubjectKey::new().build(&cert.x509v3_context(cacert, None))?;
     let authkey = AuthKey::new()
         .keyid(false)
@@ -183,6 +181,7 @@ fn base_key() -> Result<PKey<Private>, Ernum> {
 fn makeca(name: &str) -> Result<(Vec<u8>, Vec<u8>), Ernum> {
     let mut cert = base_cert(name, None)?;
 
+    cert.append_extension(BasicConstraints::new().critical().ca().build()?)?;
     cert.append_extension(
         KeyUsage::new()
             .critical()
@@ -208,6 +207,7 @@ fn create(
     let name = domains[0];
     let mut cert = base_cert(name, ca)?;
 
+    cert.append_extension(BasicConstraints::new().build()?)?;
     cert.append_extension(
         KeyUsage::new()
             .critical()

@@ -1,6 +1,6 @@
 [package]
 name = "certainly"
-version = "1.1.0"
+version = "1.1.1"
 authors = ["Félix Saparelli <felix@passcod.name>"]
 description = "The easiest way to create self-signed certificates. Ever."
 license = "Artistic-2.0"

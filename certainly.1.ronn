@@ -3,7 +3,9 @@ certainly(1) -- create self-signed certificates with ease
 
 ## SYNOPSIS
 
-certainly [`--std` | `--double-std`] <domain> [<domain>...]
+certainly [`--std` | `--double-std`] [`--ca` <name>] <domain> [<domain>...]
+
+certainly [`--std` | `--double-std`] `--make-ca` <name>
 
 certainly --inspect <certificate>
 
@@ -12,6 +14,8 @@ certainly --inspect <certificate>
 Creates a self-signed certficate and key with one or more domains associated, for web development use.
 
 By default, files named after the first domain given are written in the current directory, but flags can be passed to output to standard pipes instead.
+
+With the `--ca` option, issues a certificate signed by a "CA" instead. The CA certificate/key pair can be created with _certainly_ as well.
 
 The inspect option instead reads a certificate file and outputs terse information about it: whether it's self-signed, its dates, and the domains it covers.
 
@@ -27,6 +31,12 @@ Outputs first the key then the certificate to STDOUT.
 
 * `--double-std`:
 Outputs the key to STDERR, and the certificate to STDOUT. This is useful to write both files to a custom location efficiently, such as: `certainly --double-std domain.test > test.crt 2> test.key`.
+
+* `--ca` <name>:
+Uses the certificate/key pair _<name>.crt_ and _<name>.key_ to sign the created certificate instead of self-signing.
+
+* `--make-ca` <name>:
+Creates a certificate/key pair suitable for issuing instead of a web certificate.
 
 * `--inspect` <certificate>:
 Reads the <certificate> (in PEM format), prints some information about it, and exits.
@@ -93,6 +103,23 @@ Use OpenSSL to view all information about a certificate:
         Data:
             Version: 3 (0x2)
     ...
+
+Create a CA pair and sign a new certificate:
+
+    $ certainly --make-ca ca.test
+    Writing ca.test.key
+    Writing ca.test.crt
+
+    $ certainly --ca ca.test test.party
+    Writing test.party.key
+    Writing test.party.crt
+
+    $ certainly --inspect test.party.crt
+    Certificate signed by ca.test
+    Created on:   Sep  6 01:41:25 2018 GMT
+    Expires on:   Sep  3 01:41:25 2028 GMT
+    Domains:
+     - test.party
 
 ## DETAILS
 

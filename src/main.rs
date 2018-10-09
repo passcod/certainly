@@ -2,20 +2,22 @@
 #![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
 #![cfg_attr(feature = "cargo-clippy", allow(similar_names))]
 
+extern crate chrono;
 extern crate clap;
 extern crate openssl;
 extern crate openssl_probe;
 extern crate url;
 
+use chrono::{format::ParseError as ChronoParseError, DateTime, NaiveDateTime, TimeZone, Utc};
 use clap::{App, Arg};
-use openssl::asn1::Asn1Time;
+use openssl::asn1::{Asn1Time, Asn1TimeRef};
 use openssl::bn::{BigNum, MsbOption};
 use openssl::ec::{EcGroup, EcKey};
 use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, PKeyRef, Private};
-use openssl::ssl::{HandshakeError, SslMethod, SslConnector};
+use openssl::ssl::{HandshakeError, SslConnector, SslMethod, SslVerifyMode};
 use openssl::x509::extension::{
     AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, SubjectAlternativeName,
     SubjectKeyIdentifier as SubjectKey,
@@ -24,14 +26,15 @@ use openssl::x509::{X509, X509Builder, X509NameBuilder, X509Ref};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::{io, net::TcpStream, path::PathBuf};
-use url::{Url, ParseError};
+use url::{ParseError as UrlParseError, Url};
 
 #[derive(Debug)]
 enum Ernum {
+    Chrono(ChronoParseError),
     Io(io::Error),
     OpenSSL(ErrorStack),
     Tls(HandshakeError<TcpStream>),
-    Url(ParseError),
+    Url(UrlParseError),
     Other(String),
 }
 
@@ -53,8 +56,14 @@ impl From<HandshakeError<TcpStream>> for Ernum {
     }
 }
 
-impl From<ParseError> for Ernum {
-    fn from(err: ParseError) -> Self {
+impl From<ChronoParseError> for Ernum {
+    fn from(err: ChronoParseError) -> Self {
+        Ernum::Chrono(err)
+    }
+}
+
+impl From<UrlParseError> for Ernum {
+    fn from(err: UrlParseError) -> Self {
         Ernum::Url(err)
     }
 }
@@ -286,18 +295,27 @@ fn load_key(filepath: PathBuf) -> Result<PKey<Private>, Ernum> {
 
 fn load_remote_cert(url: &str) -> Result<X509, Ernum> {
     // parse url. try really hard
-    let url = Url::parse(url)
-        .or_else(|err| Url::parse(&format!("https://{}", url)).map_err(|_| err))?;
+    let url =
+        Url::parse(url).or_else(|err| Url::parse(&format!("https://{}", url)).map_err(|_| err))?;
 
     // connect
-    let connector = SslConnector::builder(SslMethod::tls())?.build();
+    let mut connector = SslConnector::builder(SslMethod::tls())?;
+    connector.set_verify(SslVerifyMode::NONE);
+    let connector = connector.build();
     let stream = TcpStream::connect(url.with_default_port(|_| Ok(443))?)?;
     let stream = connector.connect(url.host_str().unwrap(), stream)?;
 
     // get cert
-    stream.ssl().peer_certificate().ok_or_else(||
-        "Peer did not present certificate".into()
-    )
+    stream
+        .ssl()
+        .peer_certificate()
+        .ok_or_else(|| "Peer did not present certificate".into())
+}
+
+fn parse_cert_time(time: &Asn1TimeRef) -> Result<DateTime<Utc>, Ernum> {
+    let timestr = format!("{}", time);
+    let parsed = NaiveDateTime::parse_from_str(&timestr, "%b %_d %H:%M:%S %Y GMT")?;
+    Ok(Utc::today().timezone().from_utc_datetime(&parsed))
 }
 
 fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
@@ -314,7 +332,7 @@ fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
                     eprintln!("{:?}", filerr);
                     return Err(err);
                 }
-            }
+            },
         }
     };
 
@@ -350,8 +368,10 @@ fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
         println!("Certificate (signed)");
     }
 
-    println!("Created on:   {}", cert.not_before());
-    println!("Expires on:   {}", cert.not_after());
+    println!("Created on:   {}", parse_cert_time(cert.not_before())?);
+    let expiry = parse_cert_time(cert.not_after())?;
+    let expired = Utc::now() > expiry;
+    println!("Expire{} on:   {}", if expired { 'd' } else { 's' }, expiry);
 
     match cert.subject_alt_names() {
         None => if let Some(name) = cname {

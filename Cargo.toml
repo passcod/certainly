@@ -21,3 +21,4 @@ lto = true
 [dependencies]
 clap = "2.32.0"
 openssl = { version = "0.10.11", features = ["vendored"] }
+url = "1.7.1"

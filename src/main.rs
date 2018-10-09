@@ -4,6 +4,7 @@
 
 extern crate clap;
 extern crate openssl;
+extern crate url;
 
 use clap::{App, Arg};
 use openssl::asn1::Asn1Time;
@@ -13,6 +14,7 @@ use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, PKeyRef, Private};
+use openssl::ssl::{HandshakeError, SslMethod, SslConnector};
 use openssl::x509::extension::{
     AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, SubjectAlternativeName,
     SubjectKeyIdentifier as SubjectKey,
@@ -20,12 +22,15 @@ use openssl::x509::extension::{
 use openssl::x509::{X509, X509Builder, X509NameBuilder, X509Ref};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
-use std::{io, path::PathBuf};
+use std::{io, net::TcpStream, path::PathBuf};
+use url::{Url, ParseError};
 
 #[derive(Debug)]
 enum Ernum {
     Io(io::Error),
     OpenSSL(ErrorStack),
+    Tls(HandshakeError<TcpStream>),
+    Url(ParseError),
     Other(String),
 }
 
@@ -38,6 +43,18 @@ impl From<io::Error> for Ernum {
 impl From<ErrorStack> for Ernum {
     fn from(err: ErrorStack) -> Self {
         Ernum::OpenSSL(err)
+    }
+}
+
+impl From<HandshakeError<TcpStream>> for Ernum {
+    fn from(err: HandshakeError<TcpStream>) -> Self {
+        Ernum::Tls(err)
+    }
+}
+
+impl From<ParseError> for Ernum {
+    fn from(err: ParseError) -> Self {
+        Ernum::Url(err)
     }
 }
 
@@ -263,8 +280,39 @@ fn load_key(filepath: PathBuf) -> Result<PKey<Private>, Ernum> {
     Ok(PKey::private_key_from_pem(&buf)?)
 }
 
+fn load_remote_cert(url: &str) -> Result<X509, Ernum> {
+    // parse url. try really hard
+    let url = Url::parse(url)
+        .or_else(|err| Url::parse(&format!("https://{}", url)).map_err(|_| err))?;
+
+    // connect
+    let connector = SslConnector::builder(SslMethod::tls())?.build();
+    let stream = TcpStream::connect(url.with_default_port(|_| Ok(443))?)?;
+    let stream = connector.connect(url.host_str().unwrap(), stream)?;
+
+    // get cert
+    stream.ssl().peer_certificate().ok_or_else(||
+        "Peer did not present certificate".into()
+    )
+}
+
 fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
-    let cert = load_cert(filepath)?;
+    let maybe_url = filepath.clone();
+    let maybe_url = maybe_url.to_str().unwrap();
+    let cert = if filepath.starts_with("https://") {
+        load_remote_cert(maybe_url)?
+    } else {
+        match load_cert(filepath) {
+            Ok(cert) => cert,
+            Err(filerr) => match load_remote_cert(maybe_url) {
+                Ok(cert) => cert,
+                Err(err) => {
+                    eprintln!("{:?}", filerr);
+                    return Err(err);
+                }
+            }
+        }
+    };
 
     let mut cname = None;
     let mut subjname: Vec<String> = vec![];

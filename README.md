@@ -1,6 +1,8 @@
 # certainly
 
-The easiest way to create self-signed certificates. Ever.
+~~The easiest way to create self-signed certificates. Ever.~~
+
+Handy simple tool for common certificate-related operations.
 
 ```bash
 $ certainly test.example.com test2.example.com foo.local
@@ -15,6 +17,14 @@ Domains:
  - test.example.com
  - test2.example.com
  - foo.local
+
+$ certainly --inspect twitter.com
+Certificate signed by DigiCert SHA2 High Assurance Server CA
+Created on:   Jul 17 00:00:00 2018 GMT
+Expires on:   Jul 22 12:00:00 2019 GMT
+Domains:
+ - twitter.com
+ - www.twitter.com
 ```
 
 
@@ -48,12 +58,13 @@ Accepting contributions for more!
  - `--std` will output both key and certificate to STDOUT instead of writing files.
  - `--double-std` will output the key to STDERR and the certificate to STDOUT instead, so redirection can be used to write or pipe files where needed efficiently. Take care of checking the key is actually formatted properly and not an error message though!
 
- - `--inspect` outputs terse information about the passed certificate file and exits.
+ - `--inspect` outputs terse information about the passed certificate file (or url) and exits.
 
  - `--make-ca` creates a key/certificate pair suitable for issuing instead. Use with `--ca`.
  - `--ca NAME` signs a certificate with a CA pair instead of self-signing. Provide only the common filename, without the `.crt` and `.key` extensions.
 
 See [the man page](./certainly.1.ronn) for more.
+
 
 ## Etc
 

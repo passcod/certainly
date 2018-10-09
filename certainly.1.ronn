@@ -7,7 +7,7 @@ certainly [`--std` | `--double-std`] [`--ca` <name>] <domain> [<domain>...]
 
 certainly [`--std` | `--double-std`] `--make-ca` <name>
 
-certainly --inspect <certificate>
+certainly --inspect <certificate or url>
 
 ## DESCRIPTION
 
@@ -17,7 +17,7 @@ By default, files named after the first domain given are written in the current 
 
 With the `--ca` option, issues a certificate signed by a "CA" instead. The CA certificate/key pair can be created with _certainly_ as well.
 
-The inspect option instead reads a certificate file and outputs terse information about it: whether it's self-signed, its dates, and the domains it covers.
+The inspect option instead reads a certificate file (or fetches it from a remote site) and outputs terse information about it: whether it's self-signed, its dates, and the domains it covers.
 
 Files are written and read in PEM format. On Unix, file are written with 0600 permissions.
 
@@ -39,7 +39,7 @@ Uses the certificate/key pair _<name>.crt_ and _<name>.key_ to sign the created 
 Creates a certificate/key pair suitable for issuing instead of a web certificate.
 
 * `--inspect` <certificate>:
-Reads the <certificate> (in PEM format), prints some information about it, and exits.
+Reads the <certificate> (in PEM format), prints some information about it, and exits. Alternatively takes a URL or domain or IP address.
 
 ## EXAMPLES
 
@@ -95,6 +95,20 @@ Show some information about a certificate:
      - test.red
      - test.technology
      - rofl.lmao.lol
+
+Show some information about google's certificate:
+
+    $ certainly --inspect google.com
+    Certificate signed by Google Internet Authority G3
+    Created on:   Sep 18 12:34:00 2018 GMT
+    Expires on:   Dec 11 12:34:00 2018 GMT
+    Domains:
+     - *.google.com
+     - *.android.com
+     - *.appengine.google.com
+     - *.cloud.google.com
+     - *.g.co
+    (... many more domains ...)
 
 Use OpenSSL to view all information about a certificate:
 

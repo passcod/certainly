@@ -4,6 +4,7 @@
 
 extern crate clap;
 extern crate openssl;
+extern crate openssl_probe;
 extern crate url;
 
 use clap::{App, Arg};
@@ -65,6 +66,9 @@ impl From<&'static str> for Ernum {
 }
 
 fn main() -> Result<(), Ernum> {
+    // Fix spurious errors because of https://github.com/rust-lang/cargo/issues/3676
+    openssl_probe::init_ssl_cert_env_vars();
+
     let args = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_HOMEPAGE"))

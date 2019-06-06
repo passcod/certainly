@@ -3,7 +3,7 @@ certainly(1) -- create self-signed certificates with ease
 
 ## SYNOPSIS
 
-certainly [`--std` | `--double-std`] [`--ca` <name>] <domain> [<domain>...]
+certainly [`--std` | `--double-std`] [`--ca` <name>] [`--client`] <domain> [<domain>...]
 
 certainly [`--std` | `--double-std`] `--make-ca` <name>
 
@@ -31,6 +31,9 @@ Outputs first the key then the certificate to STDOUT.
 
 * `--double-std`:
 Outputs the key to STDERR, and the certificate to STDOUT. This is useful to write both files to a custom location efficiently, such as: `certainly --double-std domain.test > test.crt 2> test.key`.
+
+* `--client`:
+Creates a client certificate instead of a server certificate.
 
 * `--ca` <name>:
 Uses the certificate/key pair _<name>.crt_ and _<name>.key_ to sign the created certificate instead of self-signing.

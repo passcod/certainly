@@ -19,8 +19,8 @@ use openssl::nid::Nid;
 use openssl::pkey::{PKey, PKeyRef, Private};
 use openssl::ssl::{HandshakeError, SslConnector, SslMethod, SslVerifyMode};
 use openssl::x509::extension::{
-    AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, SubjectAlternativeName,
-    SubjectKeyIdentifier as SubjectKey,
+    AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, ExtendedKeyUsage,
+    SubjectAlternativeName, SubjectKeyIdentifier as SubjectKey,
 };
 use openssl::x509::{X509, X509Builder, X509NameBuilder, X509Ref};
 use std::fs::{File, OpenOptions};
@@ -95,6 +95,11 @@ fn main() -> Result<(), Ernum> {
                 .help("Create a CA cert and key suitable for signing"),
         )
         .arg(
+            Arg::with_name("client")
+                .long("client")
+                .help("Create a client certificate instead of a server one"),
+        )
+        .arg(
             Arg::with_name("ca")
                 .long("ca")
                 .value_name("NAME")
@@ -137,9 +142,13 @@ fn main() -> Result<(), Ernum> {
             let caname = args.value_of("ca").unwrap();
             let cakey = load_key(format!("{}.key", caname).into())?;
             let cacrt = load_cert(format!("{}.crt", caname).into())?;
-            create(doms, Some((cakey.as_ref(), cacrt.as_ref())))?
+            create(
+                doms,
+                Some((cakey.as_ref(), cacrt.as_ref())),
+                args.is_present("client"),
+            )?
         } else {
-            create(doms, None)?
+            create(doms, None, args.is_present("client"))?
         }
     };
 
@@ -241,6 +250,7 @@ fn makeca(name: &str) -> Result<(Vec<u8>, Vec<u8>), Ernum> {
 fn create(
     domains: Vec<&str>,
     ca: Option<(&PKeyRef<Private>, &X509Ref)>,
+    is_client: bool,
 ) -> Result<(String, Vec<u8>, Vec<u8>), Ernum> {
     let name = domains[0];
     let mut cert = base_cert(name, ca)?;
@@ -254,6 +264,15 @@ fn create(
             .key_encipherment()
             .build()?,
     )?;
+
+    let mut ekr = ExtendedKeyUsage::new();
+    if is_client {
+        ekr.client_auth();
+    } else {
+        ekr.server_auth();
+    }
+    let ekr = ekr.build()?;
+    cert.append_extension(ekr)?;
 
     let mut san = SubjectAlternativeName::new();
     for dom in domains {

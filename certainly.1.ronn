@@ -3,15 +3,15 @@ certainly(1) -- create self-signed certificates with ease
 
 ## SYNOPSIS
 
-certainly [`--std` | `--double-std`] [`--ca` <name>] [`--client`] <domain> [<domain>...]
+certainly [`--std` | `--double-std`] [`--rsa`] [`--ca` <name>] [`--client`] <domain> [<domain>...]
 
-certainly [`--std` | `--double-std`] `--make-ca` <name>
+certainly [`--std` | `--double-std`] [`--rsa`] `--make-ca` <name>
 
 certainly --inspect <certificate or url>
 
 ## DESCRIPTION
 
-Creates a self-signed certficate and key with one or more domains associated, for web development use.
+Creates a self-signed certficate and key with one or more domains associated.
 
 By default, files named after the first domain given are written in the current directory, but flags can be passed to output to standard pipes instead.
 
@@ -20,6 +20,8 @@ With the `--ca` option, issues a certificate signed by a "CA" instead. The CA ce
 The inspect option instead reads a certificate file (or fetches it from a remote site) and outputs terse information about it: whether it's self-signed, its dates, and the domains it covers.
 
 Files are written and read in PEM format. On Unix, file are written with 0600 permissions.
+
+By default, generates ECDSA keys on the P-256 curve.
 
 ## OPTIONS
 
@@ -34,6 +36,9 @@ Outputs the key to STDERR, and the certificate to STDOUT. This is useful to writ
 
 * `--client`:
 Creates a client certificate instead of a server certificate.
+
+* `--rsa`:
+Generates RSA keys instead of the default ECDSA. Key length is 4096.
 
 * `--ca` <name>:
 Uses the certificate/key pair _<name>.crt_ and _<name>.key_ to sign the created certificate instead of self-signing.
@@ -90,8 +95,8 @@ Show some information about a certificate:
 
     $ certainly --inspect test.ninja.crt
     Self-signed certificate
-    Created on:   Sep  5 21:17:47 2018 GMT
-    Expires on:   Sep  2 21:17:47 2028 GMT
+    Created on:   2018-09-05 21:17:47 UTC
+    Expires on:   2028-09-02 21:17:47 UTC
     Domains:
      DNS: test.ninja
      DNS: test.green
@@ -104,8 +109,8 @@ Show some information about google's certificate:
 
     $ certainly --inspect google.com
     Certificate signed by Google Internet Authority G3
-    Created on:   Sep 18 12:34:00 2018 GMT
-    Expires on:   Dec 11 12:34:00 2018 GMT
+    Created on:   2018-09-18 12:34:00 UTC
+    Expires on:   2018-12-11 12:34:00 UTC
     Domains:
      DNS: *.google.com
      DNS: *.android.com
@@ -134,8 +139,8 @@ Create a CA pair and sign a new certificate:
 
     $ certainly --inspect test.party.crt
     Certificate signed by ca.test
-    Created on:   Sep  6 01:41:25 2018 GMT
-    Expires on:   Sep  3 01:41:25 2028 GMT
+    Created on:   2018-09-06 01:41:25 UTC
+    Expires on:   2028-09-03 01:41:25 UTC
     Domains:
      DNS: test.party
 
@@ -152,6 +157,8 @@ Certificates are generated with a common subject of:
 They use elliptical curve cryptograpy using `prime256v1`, hashed with `SHA-512`.
 
 This generates small files (easier to inspect and manipulate) and uses algorithms that are well supported by modern tools (browsers, servers, etc) while being up-to-date with security best practices.
+
+In some legacy cases, should you absolutely need to, the `--rsa` flag instead uses 4096-bit RSA keys.
 
 ## AUTHOR
 

@@ -11,6 +11,7 @@ use openssl::error::ErrorStack;
 use openssl::hash::MessageDigest;
 use openssl::nid::Nid;
 use openssl::pkey::{PKey, PKeyRef, Private};
+use openssl::rsa::Rsa;
 use openssl::ssl::{HandshakeError, SslConnector, SslMethod, SslVerifyMode};
 use openssl::x509::extension::{
     AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, ExtendedKeyUsage,
@@ -94,6 +95,11 @@ fn main() -> Result<(), Ernum> {
                 .help("Create a client certificate instead of a server one"),
         )
         .arg(
+            Arg::with_name("rsa")
+                .long("rsa")
+                .help("Create an RSA 4096-bit key and certificate instead of ECDSA"),
+        )
+        .arg(
             Arg::with_name("ca")
                 .long("ca")
                 .value_name("NAME")
@@ -125,9 +131,11 @@ fn main() -> Result<(), Ernum> {
         std::process::exit(2);
     }
 
+    let rsa = args.is_present("rsa");
+
     let (name, key, cert) = if args.is_present("make-ca") {
         let name: &str = args.value_of("make-ca").unwrap();
-        let (key, cert) = makeca(name)?;
+        let (key, cert) = makeca(name, rsa)?;
         (name.into(), key, cert)
     } else {
         let doms = args.values_of("DOMAIN").unwrap().collect();
@@ -140,9 +148,10 @@ fn main() -> Result<(), Ernum> {
                 doms,
                 Some((cakey.as_ref(), cacrt.as_ref())),
                 args.is_present("client"),
+                rsa,
             )?
         } else {
-            create(doms, None, args.is_present("client"))?
+            create(doms, None, args.is_present("client"), rsa)?
         }
     };
 
@@ -214,13 +223,18 @@ fn base_cert(name: &str, ca: Option<(&PKeyRef<Private>, &X509Ref)>) -> Result<X5
     Ok(cert)
 }
 
-fn base_key() -> Result<PKey<Private>, Ernum> {
+fn base_ecc_key() -> Result<PKey<Private>, Ernum> {
     let curve = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1)?;
     let eckey: EcKey<Private> = EcKey::generate(curve.as_ref())?;
     Ok(PKey::from_ec_key(eckey)?)
 }
 
-fn makeca(name: &str) -> Result<(Vec<u8>, Vec<u8>), Ernum> {
+fn base_rsa_key() -> Result<PKey<Private>, Ernum> {
+    let rsakey: Rsa<Private> = Rsa::generate(4096)?;
+    Ok(PKey::from_rsa(rsakey)?)
+}
+
+fn makeca(name: &str, rsa: bool) -> Result<(Vec<u8>, Vec<u8>), Ernum> {
     let mut cert = base_cert(name, None)?;
 
     cert.append_extension(BasicConstraints::new().critical().ca().build()?)?;
@@ -232,7 +246,12 @@ fn makeca(name: &str) -> Result<(Vec<u8>, Vec<u8>), Ernum> {
             .build()?,
     )?;
 
-    let pkey = base_key()?;
+    let pkey = if rsa {
+        base_rsa_key()
+    } else {
+        base_ecc_key()
+    }?;
+
     cert.set_pubkey(pkey.as_ref())?;
     cert.sign(pkey.as_ref(), MessageDigest::sha512())?;
 
@@ -246,6 +265,7 @@ fn create(
     domains: Vec<&str>,
     ca: Option<(&PKeyRef<Private>, &X509Ref)>,
     is_client: bool,
+    rsa: bool,
 ) -> Result<(String, Vec<u8>, Vec<u8>), Ernum> {
     let name = domains[0];
     let mut cert = base_cert(name, ca)?;
@@ -282,7 +302,12 @@ fn create(
     let san = san.build(&cert.x509v3_context(ca.map(|(_, c)| c), None))?;
     cert.append_extension(san)?;
 
-    let pkey = base_key()?;
+    let pkey = if rsa {
+        base_rsa_key()
+    } else {
+        base_ecc_key()
+    }?;
+
     cert.set_pubkey(pkey.as_ref())?;
     cert.sign(
         if let Some((cakey, _)) = ca {

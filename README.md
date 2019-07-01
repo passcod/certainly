@@ -11,8 +11,8 @@ Writing test.example.com.crt
 
 $ certainly --inspect test.example.com.crt
 Self-signed certificate
-Created on:   Sep  6 01:30:45 2018 GMT
-Expires on:   Sep  3 01:30:45 2028 GMT
+Created on:   2018-09-06 01:30:45 UTC
+Expires on:   2028-09-03 01:30:45 UTC
 Domains:
  DNS: test.example.com
  DNS: test2.example.com
@@ -21,8 +21,8 @@ Domains:
 
 $ certainly --inspect twitter.com
 Certificate signed by DigiCert SHA2 High Assurance Server CA
-Created on:   Jul 17 00:00:00 2018 GMT
-Expires on:   Jul 22 12:00:00 2019 GMT
+Created on:   2018-07-17 00:00:00 UTC
+Expires on:   2019-08-22 12:00:00 UTC
 Domains:
  DNS: twitter.com
  DNS: www.twitter.com
@@ -65,6 +65,7 @@ Accepting contributions for more!
  - `--ca NAME` signs a certificate with a CA pair instead of self-signing. Provide only the common filename, without the `.crt` and `.key` extensions.
 
  - `--client` creates client certificates rather than server ones.
+ - `--rsa` creates 4096-bit RSA certificates instead of 256-bit ECDSA ones.
 
 See [the man page](./certainly.1.ronn) for more.
 

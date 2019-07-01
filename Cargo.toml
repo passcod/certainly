@@ -20,8 +20,8 @@ travis-ci = { repository = "passcod/certainly" }
 lto = true
 
 [dependencies]
-clap = "2.32.0"
-chrono = "0.4.6"
-openssl = { version = "0.10.11", features = ["vendored"] }
+clap = "2.33.0"
+chrono = "0.4.7"
+openssl = { version = "0.10.23", features = ["vendored"] }
 openssl-probe = "0.1.2"
-url = "1.7.1"
+url = "1.7.2"

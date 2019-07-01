@@ -1,12 +1,6 @@
 #![forbid(unsafe_code)]
-#![cfg_attr(feature = "cargo-clippy", deny(clippy_pedantic))]
-#![cfg_attr(feature = "cargo-clippy", allow(similar_names))]
-
-extern crate chrono;
-extern crate clap;
-extern crate openssl;
-extern crate openssl_probe;
-extern crate url;
+#![deny(clippy::pedantic)]
+#![allow(clippy::similar_names)]
 
 use chrono::{format::ParseError as ChronoParseError, DateTime, NaiveDateTime, TimeZone, Utc};
 use clap::{App, Arg};
@@ -22,7 +16,7 @@ use openssl::x509::extension::{
     AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, ExtendedKeyUsage,
     SubjectAlternativeName, SubjectKeyIdentifier as SubjectKey,
 };
-use openssl::x509::{X509, X509Builder, X509NameBuilder, X509Ref};
+use openssl::x509::{X509Builder, X509NameBuilder, X509Ref, X509};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::{io, net::TcpStream, path::PathBuf};
@@ -118,7 +112,7 @@ fn main() -> Result<(), Ernum> {
         .arg(
             Arg::with_name("DOMAIN")
                 .multiple(true)
-                .help("Every domain this certificate should support"),
+                .help("Every domain or IP this certificate should support"),
         )
         .get_matches();
 
@@ -159,14 +153,15 @@ fn main() -> Result<(), Ernum> {
         io::stdout().write_all(&key)?;
         io::stdout().write_all(&cert)?;
     } else {
+        #[cfg(unix)]
+        use std::os::unix::fs::OpenOptionsExt;
+
         let keyname = format!("{}.key", name);
         let crtname = format!("{}.crt", name);
 
         let mut fs = OpenOptions::new();
         fs.write(true).create(true).truncate(true);
 
-        #[cfg(unix)]
-        use std::os::unix::fs::OpenOptionsExt;
         #[cfg(unix)]
         fs.mode(0o600);
 
@@ -276,7 +271,13 @@ fn create(
 
     let mut san = SubjectAlternativeName::new();
     for dom in domains {
-        san.dns(dom);
+        use std::net::{Ipv4Addr, Ipv6Addr};
+
+        if dom.parse::<Ipv4Addr>().is_ok() || dom.parse::<Ipv6Addr>().is_ok() {
+            san.ip(dom);
+        } else {
+            san.dns(dom);
+        }
     }
     let san = san.build(&cert.x509v3_context(ca.map(|(_, c)| c), None))?;
     cert.append_extension(san)?;
@@ -393,16 +394,31 @@ fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
     println!("Expire{} on:   {}", if expired { 'd' } else { 's' }, expiry);
 
     match cert.subject_alt_names() {
-        None => if let Some(name) = cname {
-            println!("Domains:\n - {}", name);
-        } else {
-            println!("No domains???");
-        },
+        None => {
+            if let Some(name) = cname {
+                println!("Domains:\n - {}", name);
+            } else {
+                println!("No domains???");
+            }
+        }
         Some(alts) => {
             println!("Domains:");
             for alt in alts {
                 if let Some(dns) = alt.dnsname() {
-                    println!(" - {}", dns);
+                    println!(" DNS: {}", dns);
+                } else if let Some(ip) = alt.ipaddress() {
+                    use std::convert::TryFrom;
+                    use std::net::{Ipv4Addr, Ipv6Addr};
+
+                    if let Ok(octets) = <[u8; 16]>::try_from(ip) {
+                        println!(" IPV6: {}", Ipv6Addr::from(octets));
+                    } else if let Ok(octets) = <[u8; 4]>::try_from(ip) {
+                        println!(" IPV4: {}", Ipv4Addr::from(octets));
+                    }
+                } else if let Some(uri) = alt.uri() {
+                    println!(" URI: {}", uri);
+                } else if let Some(email) = alt.email() {
+                    println!(" EMAIL: {}", email);
                 }
             }
         }

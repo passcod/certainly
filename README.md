@@ -5,7 +5,7 @@
 Handy simple tool for common certificate-related operations.
 
 ```bash
-$ certainly test.example.com test2.example.com foo.local
+$ certainly test.example.com test2.example.com foo.local 10.0.200.36
 Writing test.example.com.key
 Writing test.example.com.crt
 
@@ -14,17 +14,18 @@ Self-signed certificate
 Created on:   Sep  6 01:30:45 2018 GMT
 Expires on:   Sep  3 01:30:45 2028 GMT
 Domains:
- - test.example.com
- - test2.example.com
- - foo.local
+ DNS: test.example.com
+ DNS: test2.example.com
+ DNS: foo.local
+ IP: 10.0.200.36
 
 $ certainly --inspect twitter.com
 Certificate signed by DigiCert SHA2 High Assurance Server CA
 Created on:   Jul 17 00:00:00 2018 GMT
 Expires on:   Jul 22 12:00:00 2019 GMT
 Domains:
- - twitter.com
- - www.twitter.com
+ DNS: twitter.com
+ DNS: www.twitter.com
 ```
 
 
@@ -62,6 +63,8 @@ Accepting contributions for more!
 
  - `--make-ca` creates a key/certificate pair suitable for issuing instead. Use with `--ca`.
  - `--ca NAME` signs a certificate with a CA pair instead of self-signing. Provide only the common filename, without the `.crt` and `.key` extensions.
+
+ - `--client` creates client certificates rather than server ones.
 
 See [the man page](./certainly.1.ronn) for more.
 

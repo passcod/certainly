@@ -24,7 +24,7 @@ Files are written and read in PEM format. On Unix, file are written with 0600 pe
 ## OPTIONS
 
 * <domain>:
-A domain to add to the certificate. The first such domain will also be the certificate's _common name_.
+A domain to add to the certificate. The first such domain will also be the certificate's _common name_. IPv4 and v6 addresses are also supported.
 
 * `--std`:
 Outputs first the key then the certificate to STDOUT.
@@ -93,11 +93,12 @@ Show some information about a certificate:
     Created on:   Sep  5 21:17:47 2018 GMT
     Expires on:   Sep  2 21:17:47 2028 GMT
     Domains:
-     - test.ninja
-     - test.green
-     - test.red
-     - test.technology
-     - rofl.lmao.lol
+     DNS: test.ninja
+     DNS: test.green
+     EMAIL: test@red.link
+     DNS: test.technology
+     DNS: rofl.lmao.lol
+     IPV4: 1.2.3.4
 
 Show some information about google's certificate:
 
@@ -106,11 +107,11 @@ Show some information about google's certificate:
     Created on:   Sep 18 12:34:00 2018 GMT
     Expires on:   Dec 11 12:34:00 2018 GMT
     Domains:
-     - *.google.com
-     - *.android.com
-     - *.appengine.google.com
-     - *.cloud.google.com
-     - *.g.co
+     DNS: *.google.com
+     DNS: *.android.com
+     DNS: *.appengine.google.com
+     DNS: *.cloud.google.com
+     DNS: *.g.co
     (... many more domains ...)
 
 Use OpenSSL to view all information about a certificate:
@@ -136,7 +137,7 @@ Create a CA pair and sign a new certificate:
     Created on:   Sep  6 01:41:25 2018 GMT
     Expires on:   Sep  3 01:41:25 2028 GMT
     Domains:
-     - test.party
+     DNS: test.party
 
 ## DETAILS
 

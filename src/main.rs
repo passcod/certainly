@@ -14,7 +14,7 @@ use openssl::pkey::{PKey, PKeyRef, Private};
 use openssl::rsa::Rsa;
 use openssl::ssl::{HandshakeError, SslConnector, SslMethod, SslVerifyMode};
 use openssl::x509::extension::{
-    AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, ExtendedKeyUsage,
+    AuthorityKeyIdentifier as AuthKey, BasicConstraints, ExtendedKeyUsage, KeyUsage,
     SubjectAlternativeName, SubjectKeyIdentifier as SubjectKey,
 };
 use openssl::x509::{X509Builder, X509Name, X509NameBuilder, X509Ref, X509};
@@ -201,10 +201,23 @@ lazy_static::lazy_static! {
 
 fn distinguished(org: &str, name: &str) -> Result<X509Name, Ernum> {
     let mut dn = X509NameBuilder::new()?;
-    dn.append_entry_by_text("C", &env::var("CERTAINLY_C").unwrap_or("ZZ".into()))?;
-    dn.append_entry_by_text("ST", &env::var("CERTAINLY_ST").unwrap_or("AA".into()))?;
-    dn.append_entry_by_text("O", &env::var("CERTAINLY_O").unwrap_or(format!("Certainly {}", org)))?;
-    dn.append_entry_by_text("OU", &env::var("CERTAINLY_OU").unwrap_or(format!("{} from {}", name, HOSTNAME.to_string_lossy())))?;
+    dn.append_entry_by_text(
+        "C",
+        &env::var("CERTAINLY_C").unwrap_or_else(|_| "ZZ".into()),
+    )?;
+    dn.append_entry_by_text(
+        "ST",
+        &env::var("CERTAINLY_ST").unwrap_or_else(|_| "AA".into()),
+    )?;
+    dn.append_entry_by_text(
+        "O",
+        &env::var("CERTAINLY_O").unwrap_or_else(|_| format!("Certainly {}", org)),
+    )?;
+    dn.append_entry_by_text(
+        "OU",
+        &env::var("CERTAINLY_OU")
+            .unwrap_or_else(|_| format!("{} from {}", name, HOSTNAME.to_string_lossy())),
+    )?;
     dn.append_entry_by_text("CN", name)?;
     Ok(dn.build())
 }
@@ -262,11 +275,7 @@ fn makeca(name: &str, rsa: bool) -> Result<(Vec<u8>, Vec<u8>), Ernum> {
             .build()?,
     )?;
 
-    let pkey = if rsa {
-        base_rsa_key()
-    } else {
-        base_ecc_key()
-    }?;
+    let pkey = if rsa { base_rsa_key() } else { base_ecc_key() }?;
 
     cert.set_pubkey(pkey.as_ref())?;
     cert.sign(pkey.as_ref(), MessageDigest::sha512())?;
@@ -318,11 +327,7 @@ fn create(
     let san = san.build(&cert.x509v3_context(ca.map(|(_, c)| c), None))?;
     cert.append_extension(san)?;
 
-    let pkey = if rsa {
-        base_rsa_key()
-    } else {
-        base_ecc_key()
-    }?;
+    let pkey = if rsa { base_rsa_key() } else { base_ecc_key() }?;
 
     cert.set_pubkey(pkey.as_ref())?;
     cert.sign(

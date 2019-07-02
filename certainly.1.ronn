@@ -11,7 +11,7 @@ certainly --inspect <certificate or url>
 
 ## DESCRIPTION
 
-Creates a self-signed certficate and key with one or more domains associated.
+Creates a self-signed certificate and key with one or more domains associated.
 
 By default, files named after the first domain given are written in the current directory, but flags can be passed to output to standard pipes instead.
 
@@ -155,9 +155,9 @@ Certificates are generated with a common subject of:
 
 * ST (State): `AA`
 
-* O (Organisation): `Certainly`
+* O (Organisation): `Certainly Subjecting`
 
-They use elliptical curve cryptograpy using `prime256v1`, hashed with `SHA-512`.
+They use elliptical curve cryptography using `prime256v1`, hashed with `SHA-512`.
 
 This generates small files (easier to inspect and manipulate) and uses algorithms that are well supported by modern tools (browsers, servers, etc) while being up-to-date with security best practices.
 

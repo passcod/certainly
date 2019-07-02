@@ -17,7 +17,7 @@ use openssl::x509::extension::{
     AuthorityKeyIdentifier as AuthKey, BasicConstraints, KeyUsage, ExtendedKeyUsage,
     SubjectAlternativeName, SubjectKeyIdentifier as SubjectKey,
 };
-use openssl::x509::{X509Builder, X509NameBuilder, X509Ref, X509};
+use openssl::x509::{X509Builder, X509Name, X509NameBuilder, X509Ref, X509};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::{io, net::TcpStream, path::PathBuf};
@@ -194,26 +194,28 @@ fn main() -> Result<(), Ernum> {
     Ok(())
 }
 
-fn base_cert(name: &str, ca: Option<(&PKeyRef<Private>, &X509Ref)>) -> Result<X509Builder, Ernum> {
-    let mut subject = X509NameBuilder::new()?;
-    subject.append_entry_by_text("C", "ZZ")?;
-    subject.append_entry_by_text("ST", "AA")?;
-    subject.append_entry_by_text("O", "Certainly")?;
-    subject.append_entry_by_text("CN", name)?;
-    let subject = subject.build();
+fn distinguished(org: &str, name: &str) -> Result<X509Name, Ernum> {
+    let mut dn = X509NameBuilder::new()?;
+    dn.append_entry_by_text("C", "ZZ")?;
+    dn.append_entry_by_text("ST", "AA")?;
+    dn.append_entry_by_text("O", &format!("Certainly {}", org))?;
+    dn.append_entry_by_text("CN", name)?;
+    Ok(dn.build())
+}
 
+fn base_cert(name: &str, ca: Option<(&PKeyRef<Private>, &X509Ref)>) -> Result<X509Builder, Ernum> {
     let mut cert = X509Builder::new()?;
     cert.set_version(2)?;
     cert.set_not_before(Asn1Time::days_from_now(0)?.as_ref())?;
     cert.set_not_after(Asn1Time::days_from_now(3650)?.as_ref())?;
-    cert.set_subject_name(&subject)?;
+    cert.set_subject_name(distinguished("Subjecting", name)?.as_ref())?;
 
     let cacert = ca.map(|(_, c)| c);
-    cert.set_issuer_name(if let Some(cert) = cacert {
-        cert.subject_name()
+    if let Some(caert) = cacert {
+        cert.set_issuer_name(caert.subject_name())?;
     } else {
-        &subject
-    })?;
+        cert.set_issuer_name(distinguished("Issuing", name)?.as_ref())?;
+    };
 
     let mut serial = BigNum::new()?;
     serial.rand(159, MsbOption::MAYBE_ZERO, false)?;

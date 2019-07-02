@@ -111,6 +111,11 @@ fn main() -> Result<(), Ernum> {
                 .help("Output to stdout instead of writing files"),
         )
         .arg(
+            Arg::with_name("reverse-std")
+                .long("reverse-std")
+                .help("Output to stdout instead of writing files, with the key last"),
+        )
+        .arg(
             Arg::with_name("double-std")
                 .long("double-std")
                 .help("Output the key to stderr and the cert to stdout"),
@@ -158,6 +163,9 @@ fn main() -> Result<(), Ernum> {
     if args.is_present("double-std") {
         io::stderr().write_all(&key)?;
         io::stdout().write_all(&cert)?;
+    } else if args.is_present("reverse-std") {
+        io::stdout().write_all(&cert)?;
+        io::stdout().write_all(&key)?;
     } else if args.is_present("std") {
         io::stdout().write_all(&key)?;
         io::stdout().write_all(&cert)?;

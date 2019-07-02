@@ -3,9 +3,9 @@ certainly(1) -- create self-signed certificates with ease
 
 ## SYNOPSIS
 
-certainly [`--std` | `--double-std`] [`--rsa`] [`--ca` <name>] [`--client`] <domain> [<domain>...]
+certainly [`--std` | `--reverse-std` | `--double-std`] [`--rsa`] [`--ca` <name>] [`--client`] <domain> [<domain>...]
 
-certainly [`--std` | `--double-std`] [`--rsa`] `--make-ca` <name>
+certainly [`--std` | `--reverse-std` | `--double-std`] [`--rsa`] `--make-ca` <name>
 
 certainly --inspect <certificate or url>
 
@@ -30,6 +30,9 @@ A domain to add to the certificate. The first such domain will also be the certi
 
 * `--std`:
 Outputs first the key then the certificate to STDOUT.
+
+* `--reverse-std`:
+Outputs first the certificated then the key to STDOUT.
 
 * `--double-std`:
 Outputs the key to STDERR, and the certificate to STDOUT. This is useful to write both files to a custom location efficiently, such as: `certainly --double-std domain.test > test.crt 2> test.key`.

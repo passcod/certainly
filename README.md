@@ -56,7 +56,7 @@ Accepting contributions for more!
 
 ## Options
 
- - `--std` will output both key and certificate to STDOUT instead of writing files.
+ - `--std` and `--reverse-std` will output both key and certificate to STDOUT instead of writing files.
  - `--double-std` will output the key to STDERR and the certificate to STDOUT instead, so redirection can be used to write or pipe files where needed efficiently. Take care of checking the key is actually formatted properly and not an error message though!
 
  - `--inspect` outputs terse information about the passed certificate file (or url) and exits.

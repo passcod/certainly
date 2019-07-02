@@ -163,6 +163,15 @@ This generates small files (easier to inspect and manipulate) and uses algorithm
 
 In some legacy cases, should you absolutely need to, the `--rsa` flag instead uses 4096-bit RSA keys.
 
+## ENVIRONMENT VARIABLES
+
+The distinguished name details can be controlled using the following variables:
+
+* `CERTAINLY_C`
+* `CERTAINLY_ST`
+* `CERTAINLY_O`
+* `CERTAINLY_OU`
+
 ## AUTHOR
 
 Félix Saparelli <https://passcod.name>

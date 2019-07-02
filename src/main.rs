@@ -18,6 +18,7 @@ use openssl::x509::extension::{
     SubjectAlternativeName, SubjectKeyIdentifier as SubjectKey,
 };
 use openssl::x509::{X509Builder, X509Name, X509NameBuilder, X509Ref, X509};
+use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::{io, net::TcpStream, path::PathBuf};
@@ -200,10 +201,10 @@ lazy_static::lazy_static! {
 
 fn distinguished(org: &str, name: &str) -> Result<X509Name, Ernum> {
     let mut dn = X509NameBuilder::new()?;
-    dn.append_entry_by_text("C", "ZZ")?;
-    dn.append_entry_by_text("ST", "AA")?;
-    dn.append_entry_by_text("O", &format!("Certainly {}", org))?;
-    dn.append_entry_by_text("OU", &format!("{} from {}", name, HOSTNAME.to_string_lossy()))?;
+    dn.append_entry_by_text("C", &env::var("CERTAINLY_C").unwrap_or("ZZ".into()))?;
+    dn.append_entry_by_text("ST", &env::var("CERTAINLY_ST").unwrap_or("AA".into()))?;
+    dn.append_entry_by_text("O", &env::var("CERTAINLY_O").unwrap_or(format!("Certainly {}", org)))?;
+    dn.append_entry_by_text("OU", &env::var("CERTAINLY_OU").unwrap_or(format!("{} from {}", name, HOSTNAME.to_string_lossy())))?;
     dn.append_entry_by_text("CN", name)?;
     Ok(dn.build())
 }

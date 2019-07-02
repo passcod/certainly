@@ -266,7 +266,7 @@ fn base_rsa_key() -> Result<PKey<Private>, Ernum> {
 fn makeca(name: &str, rsa: bool) -> Result<(Vec<u8>, Vec<u8>), Ernum> {
     let mut cert = base_cert(name, None)?;
 
-    cert.append_extension(BasicConstraints::new().critical().ca().build()?)?;
+    cert.append_extension(BasicConstraints::new().critical().ca().pathlen(0).build()?)?;
     cert.append_extension(
         KeyUsage::new()
             .critical()

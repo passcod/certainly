@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        rust: [stable]
+        os: [ubuntu-latest, macOS-latest, windows-latest]
+        include:
+          - os: macOS-latest
+            rust: stable
+            artifact_name: certainly
+            target: x86_64-apple-darwin
+            release_name: certainly-${{ tag }}-x86_64-apple-darwin.tar.xz
+          - os: windows-latest
+            rust: stable
+            artifact_name: certainly.exe
+            target: x86_64-pc-windows-msvc
+            release_name: certainly-${{ tag }}-x86_64-pc-windows-msvc.zip
+          - os: ubuntu-latest
+            rust: stable
+            artifact_name: certainly
+            target: x86_64-unknown-linux-gnu
+            release_name: certainly-${{ tag }}-x86_64-unknown-linux-gnu.tar.xz
+    steps:
+      - name: Setup Rust
+        uses: hecrj/setup-rust-action@master
+        with:
+          rust-version: ${{ matrix.rust }}
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Build and package
+        shell: bash
+        run: ./.package ${{ tag }} ${{ matrix.target }}
+      - name: Upload binaries to GitHub release
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ matrix.release_name }}
+          asset_name: ${{ matrix.release_name }}
+          tag: ${{github.ref}}
+  crates:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Rust
+        uses: hecrj/setup-rust-action@master
+        with:
+          rust-version: ${{ matrix.rust }}
+      - name: Checkout
+        uses: actions/checkout@v1
+      - name: Publish to crates.io
+        run: |
+          cargo login ${{ secrets.crates_key }}
+          cargo publish

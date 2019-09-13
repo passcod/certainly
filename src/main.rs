@@ -325,25 +325,32 @@ fn base_cert(name: &str, algo: Algo) -> Result<CertificateParams, Ernum> {
     Ok(params)
 }
 
-const OID_KEY_USAGE: &'static [u64] = &[2, 5, 29, 16];
+const OID_KEY_USAGE: &'static [u64] = &[2, 5, 29, 15];
 
-const KEY_USAGE_CA: u8 = 0b0000_0110;
-//                               ^^
-//                               | \
-//                               |  +- cRLSign
-//                               +- keyCertSign
+const KEY_USAGE_CA: &'static [bool] = &[false, false, false, false, false, true, true, false, false];
+//                                                                         ^     ^
+//                                                                         |     |
+//                                                                         |     +- cRLSign
+//                                                                         +- keyCertSign
 
-const KEY_USAGE_CERT: u8 = 0b1110_0000;
-//                           ^^^-- keyEncipherment
-//                           | \
-//                           |  +- nonRepudiation/contentCommitment
-//                           +- digitalSignature
+const KEY_USAGE_CERT: &'static [bool] = &[true, true, true, false, false, false, false, false, false];
+//                                        ^     ^     ^
+//                                        |     |     |
+//                                        |     |     +- keyEncipherment
+//                                        |     +- nonRepudiation/contentCommitment
+//                                        +- digitalSignature
 
 fn key_usage(ca: bool) -> CustomExtension {
-    let mut key_usage = CustomExtension::from_oid_content(OID_KEY_USAGE, vec![
-        if ca { KEY_USAGE_CA } else { KEY_USAGE_CERT },
-        0
-    ]);
+    let der = yasna::construct_der(|writer| {
+        writer.write_bitvec(
+            &if ca { KEY_USAGE_CA } else { KEY_USAGE_CERT }.iter().copied().collect()
+        );
+    });
+
+    let mut key_usage = CustomExtension::from_oid_content(
+        OID_KEY_USAGE,
+        der
+    );
     key_usage.set_criticality(true);
     key_usage
 }

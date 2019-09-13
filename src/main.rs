@@ -330,25 +330,31 @@ fn base_cert(name: &str, algo: Algo) -> Result<CertificateParams, Ernum> {
 
 const OID_KEY_USAGE: &[u64] = &[2, 5, 29, 15];
 
-const KEY_USAGE_CA: &[bool] = &[false, false, false, false, false, true, true, false, false];
-//                                       ^     ^
-//                                       |     |
-//                                       |     +- cRLSign
-//                                       +- keyCertSign
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Usage {
+    None,
+    Ca,
+    Cert,
+}
 
-const KEY_USAGE_CERT: &[bool] = &[true, true, true, false, false, false, false, false, false];
-//    ^     ^     ^
-//    |     |     |
-//    |     |     +- keyEncipherment
-//    |     +- nonRepudiation/contentCommitment
-//    +- digitalSignature
+const KEY_USAGE: &[Usage] = &[
+    Usage::Cert, // digitalSignature
+    Usage::Cert, // nonRepudiation/contentCommitment
+    Usage::Cert, // keyEncipherment
+    Usage::None,
+    Usage::None,
+    Usage::Ca, // keyCertSign
+    Usage::Ca, // cRLSign
+    Usage::None,
+    Usage::None,
+];
 
 fn key_usage(ca: bool) -> CustomExtension {
     let der = yasna::construct_der(|writer| {
         writer.write_bitvec(
-            &if ca { KEY_USAGE_CA } else { KEY_USAGE_CERT }
+            &KEY_USAGE
                 .iter()
-                .copied()
+                .map(|u| *u == if ca { Usage::Ca } else { Usage::Cert })
                 .collect(),
         );
     });

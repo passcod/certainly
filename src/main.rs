@@ -1,10 +1,14 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::pedantic)]
+#![deny(clippy::nursery)]
 #![allow(clippy::similar_names)]
 
 use chrono::{format::ParseError as ChronoParseError, Utc};
 use clap::{App, Arg, ArgGroup};
-use rcgen::{Certificate, CertificateParams, CustomExtension, DistinguishedName, KeyPair, RcgenError, SignatureAlgorithm};
+use rcgen::{
+    Certificate, CertificateParams, CustomExtension, DistinguishedName, KeyPair, RcgenError,
+    SignatureAlgorithm,
+};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::{io, path::PathBuf};
@@ -12,11 +16,11 @@ use std::{io, path::PathBuf};
 #[cfg(feature = "rsa")]
 use openssl::error::ErrorStack;
 #[cfg(feature = "inspect")]
-use openssl::ssl::{HandshakeError};
-#[cfg(feature = "inspect")]
-use url::ParseError as UrlParseError;
+use openssl::ssl::HandshakeError;
 #[cfg(feature = "inspect")]
 use std::net::TcpStream;
+#[cfg(feature = "inspect")]
+use url::ParseError as UrlParseError;
 
 #[derive(Debug)]
 pub(crate) enum Ernum {
@@ -134,31 +138,28 @@ fn main() -> Result<(), Ernum> {
                 .help("Create an ED25519 key and certificate"),
         );
 
-        #[cfg(feature = "rsa")]
-        let args = args.arg(
-            Arg::with_name("rsa")
-                .long("rsa")
-                .help("Create an RSA 4096-bit key and certificate"),
-        );
+    #[cfg(feature = "rsa")]
+    let args = args.arg(
+        Arg::with_name("rsa")
+            .long("rsa")
+            .help("Create an RSA 4096-bit key and certificate"),
+    );
 
-        #[cfg(feature = "inspect")]
-        let args = args.arg(
-            Arg::with_name("inspect")
-                .long("inspect")
-                .value_name("CERTIFICATE")
-                .help("Show information about a certificate"),
-        );
+    #[cfg(feature = "inspect")]
+    let args = args.arg(
+        Arg::with_name("inspect")
+            .long("inspect")
+            .value_name("CERTIFICATE")
+            .help("Show information about a certificate"),
+    );
 
-        let args = args
-            .group(
-                ArgGroup::with_name("algo")
-                    .args(if cfg!(feature = "rsa") {
-                        &["ecdsa", "ed25519", "rsa"]
-                    } else {
-                        &["ecdsa", "ed25519"]
-                    })
-            )
-            .get_matches();
+    let args = args
+        .group(ArgGroup::with_name("algo").args(if cfg!(feature = "rsa") {
+            &["ecdsa", "ed25519", "rsa"]
+        } else {
+            &["ecdsa", "ed25519"]
+        }))
+        .get_matches();
 
     if args.is_present("inspect") {
         if cfg!(feature = "inspect") {
@@ -192,21 +193,16 @@ fn main() -> Result<(), Ernum> {
         let cert = makeca(name, algo)?;
         (name.into(), cert, None)
     } else {
-        let doms = args.values_of("DOMAIN").unwrap().collect();
+        let doms: Vec<&str> = args.values_of("DOMAIN").unwrap().collect();
 
         if args.is_present("ca") {
             let caname = args.value_of("ca").unwrap();
             let cakey = load_key(format!("{}.key", caname).into())?;
             let cacrt = load_cert(format!("{}.crt", caname).into(), cakey)?;
-            let (n, c) = create(
-                doms,
-                Some(&cacrt),
-                args.is_present("client"),
-                algo,
-            )?;
+            let (n, c) = create(&doms, Some(&cacrt), args.is_present("client"), algo)?;
             (n, c, Some(cacrt))
         } else {
-            let (n, c) = create(doms, None, args.is_present("client"), algo)?;
+            let (n, c) = create(&doms, None, args.is_present("client"), algo)?;
             (n, c, None)
         }
     };
@@ -221,14 +217,14 @@ fn main() -> Result<(), Ernum> {
     let certb = cert.as_bytes();
 
     if args.is_present("double-std") {
-        io::stderr().write_all(&keyb)?;
-        io::stdout().write_all(&certb)?;
+        io::stderr().write_all(keyb)?;
+        io::stdout().write_all(certb)?;
     } else if args.is_present("reverse-std") {
-        io::stdout().write_all(&certb)?;
-        io::stdout().write_all(&keyb)?;
+        io::stdout().write_all(certb)?;
+        io::stdout().write_all(keyb)?;
     } else if args.is_present("std") {
-        io::stdout().write_all(&keyb)?;
-        io::stdout().write_all(&certb)?;
+        io::stdout().write_all(keyb)?;
+        io::stdout().write_all(certb)?;
     } else {
         #[cfg(unix)]
         use std::os::unix::fs::OpenOptionsExt;
@@ -244,11 +240,11 @@ fn main() -> Result<(), Ernum> {
 
         eprintln!("Writing {}", keyname);
         let mut keyfile = fs.open(keyname)?;
-        keyfile.write_all(&keyb)?;
+        keyfile.write_all(keyb)?;
 
         eprintln!("Writing {}", crtname);
         let mut crtfile = fs.open(crtname)?;
-        crtfile.write_all(&certb)?;
+        crtfile.write_all(certb)?;
     }
 
     Ok(())
@@ -256,13 +252,18 @@ fn main() -> Result<(), Ernum> {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Algo {
-    Ec, Ed, Rsa
+    Ec,
+    Ed,
+    Rsa,
 }
 
 impl Algo {
     #[cfg(feature = "rsa")]
     fn rsa_key() -> Result<KeyPair, Ernum> {
-        use openssl::{rsa::Rsa, pkey::{PKey, Private}};
+        use openssl::{
+            pkey::{PKey, Private},
+            rsa::Rsa,
+        };
         let rsakey: Rsa<Private> = Rsa::generate(4096)?;
         let pem = String::from_utf8(PKey::from_rsa(rsakey)?.private_key_to_pem_pkcs8()?)
             .expect("OpenSSL generated bad PEM, this is not a certainly bug.");
@@ -274,18 +275,15 @@ impl Algo {
         unreachable!()
     }
 
-    pub fn key(&self) -> Result<KeyPair, Ernum> {
+    pub fn key(self) -> Result<KeyPair, Ernum> {
         match self {
-            Algo::Ec =>
-                KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256).map_err(Into::into),
-            Algo::Ed =>
-                KeyPair::generate(&rcgen::PKCS_ED25519).map_err(Into::into),
-            Algo::Rsa =>
-                Self::rsa_key()
+            Algo::Ec => KeyPair::generate(&rcgen::PKCS_ECDSA_P256_SHA256).map_err(Into::into),
+            Algo::Ed => KeyPair::generate(&rcgen::PKCS_ED25519).map_err(Into::into),
+            Algo::Rsa => Self::rsa_key(),
         }
     }
 
-    pub fn rcgen(&self) -> &'static SignatureAlgorithm {
+    pub fn rcgen(self) -> &'static SignatureAlgorithm {
         match self {
             Algo::Ec => &rcgen::PKCS_ECDSA_P256_SHA256,
             Algo::Ed => &rcgen::PKCS_ED25519,
@@ -298,14 +296,17 @@ lazy_static::lazy_static! {
     static ref HOSTNAME: std::ffi::OsString = gethostname::gethostname();
 }
 
-const OID_ORG_UNIT: &'static [u64] = &[2, 5, 4, 11];
+const OID_ORG_UNIT: &[u64] = &[2, 5, 4, 11];
 
 fn distinguished(name: &str) -> DistinguishedName {
     use rcgen::DnType;
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CountryName, "ZZ");
     dn.push(DnType::OrganizationName, "Certainly");
-    dn.push(DnType::from_oid(OID_ORG_UNIT), format!("{} from {}", name, HOSTNAME.to_string_lossy()));
+    dn.push(
+        DnType::from_oid(OID_ORG_UNIT),
+        format!("{} from {}", name, HOSTNAME.to_string_lossy()),
+    );
     dn.push(DnType::CommonName, name);
     dn
 }
@@ -318,45 +319,47 @@ fn base_cert(name: &str, algo: Algo) -> Result<CertificateParams, Ernum> {
     let mut params = CertificateParams::default();
     params.alg = algo.rcgen();
     params.serial_number = Some(rand::thread_rng().gen());
-    params.not_after = now.with_year(now.year() + 10).expect("Ten years in the future doesn't exist according to Chrono. Not a certainly bug.");
+    params.not_after = now
+        .with_year(now.year() + 10)
+        .expect("Ten years in the future doesn't exist according to Chrono. Not a certainly bug.");
     params.not_before = now;
     params.distinguished_name = distinguished(name);
     params.key_pair = Some(algo.key()?);
     Ok(params)
 }
 
-const OID_KEY_USAGE: &'static [u64] = &[2, 5, 29, 15];
+const OID_KEY_USAGE: &[u64] = &[2, 5, 29, 15];
 
-const KEY_USAGE_CA: &'static [bool] = &[false, false, false, false, false, true, true, false, false];
-//                                                                         ^     ^
-//                                                                         |     |
-//                                                                         |     +- cRLSign
-//                                                                         +- keyCertSign
+const KEY_USAGE_CA: &[bool] = &[false, false, false, false, false, true, true, false, false];
+//                                       ^     ^
+//                                       |     |
+//                                       |     +- cRLSign
+//                                       +- keyCertSign
 
-const KEY_USAGE_CERT: &'static [bool] = &[true, true, true, false, false, false, false, false, false];
-//                                        ^     ^     ^
-//                                        |     |     |
-//                                        |     |     +- keyEncipherment
-//                                        |     +- nonRepudiation/contentCommitment
-//                                        +- digitalSignature
+const KEY_USAGE_CERT: &[bool] = &[true, true, true, false, false, false, false, false, false];
+//    ^     ^     ^
+//    |     |     |
+//    |     |     +- keyEncipherment
+//    |     +- nonRepudiation/contentCommitment
+//    +- digitalSignature
 
 fn key_usage(ca: bool) -> CustomExtension {
     let der = yasna::construct_der(|writer| {
         writer.write_bitvec(
-            &if ca { KEY_USAGE_CA } else { KEY_USAGE_CERT }.iter().copied().collect()
+            &if ca { KEY_USAGE_CA } else { KEY_USAGE_CERT }
+                .iter()
+                .copied()
+                .collect(),
         );
     });
 
-    let mut key_usage = CustomExtension::from_oid_content(
-        OID_KEY_USAGE,
-        der
-    );
+    let mut key_usage = CustomExtension::from_oid_content(OID_KEY_USAGE, der);
     key_usage.set_criticality(true);
     key_usage
 }
 
 fn makeca(name: &str, algo: Algo) -> Result<Certificate, Ernum> {
-    use rcgen::{IsCa, BasicConstraints};
+    use rcgen::{BasicConstraints, IsCa};
 
     let mut params = base_cert(name, algo)?;
     params.is_ca = IsCa::Ca(BasicConstraints::Constrained(16));
@@ -366,12 +369,12 @@ fn makeca(name: &str, algo: Algo) -> Result<Certificate, Ernum> {
 }
 
 fn create(
-    domains: Vec<&str>,
+    domains: &[&str],
     _ca: Option<&Certificate>,
     is_client: bool,
     algo: Algo,
 ) -> Result<(String, Certificate), Ernum> {
-    use rcgen::{ExtendedKeyUsagePurpose, CidrSubnet, SanType};
+    use rcgen::{CidrSubnet, ExtendedKeyUsagePurpose, SanType};
 
     let name = domains[0];
     let mut params = base_cert(name, algo)?;
@@ -382,13 +385,16 @@ fn create(
     } else {
         ExtendedKeyUsagePurpose::ServerAuth
     });
-    params.subject_alt_names = domains.iter().map(|dom| {
-        if let Ok(cidr) = CidrSubnet::from_str(dom) {
-            SanType::IpAddress(cidr)
-        } else {
-            SanType::DnsName(dom.to_string())
-        }
-    }).collect();
+    params.subject_alt_names = domains
+        .iter()
+        .map(|dom| {
+            if let Ok(cidr) = CidrSubnet::from_str(dom) {
+                SanType::IpAddress(cidr)
+            } else {
+                SanType::DnsName(dom.to_string())
+            }
+        })
+        .collect();
     // TODO? add issuer name?
 
     Ok((name.into(), Certificate::from_params(params)?))
@@ -411,18 +417,22 @@ fn load_key(filepath: PathBuf) -> Result<KeyPair, Ernum> {
 }
 
 #[cfg(not(feature = "inspect"))]
-mod inspect { pub(crate) fn inspect(_: std::path::PathBuf) -> Result<(), super::Ernum> { unreachable!() } }
+mod inspect {
+    pub(crate) fn inspect(_: std::path::PathBuf) -> Result<(), super::Ernum> {
+        unreachable!()
+    }
+}
 
 #[cfg(feature = "inspect")]
 mod inspect {
     use super::Ernum;
-    use std::fs::{File};
-    use std::io::{Read};
-    use std::{net::TcpStream, path::PathBuf};
     use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-    use openssl::asn1::{Asn1TimeRef};
+    use openssl::asn1::Asn1TimeRef;
     use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-    use openssl::x509::{X509};
+    use openssl::x509::X509;
+    use std::fs::File;
+    use std::io::Read;
+    use std::{net::TcpStream, path::PathBuf};
     use url::Url;
 
     fn load_cert(filepath: PathBuf) -> Result<X509, Ernum> {
@@ -434,8 +444,8 @@ mod inspect {
 
     fn load_remote_cert(url: &str) -> Result<X509, Ernum> {
         // parse url. try really hard
-        let url =
-            Url::parse(url).or_else(|err| Url::parse(&format!("https://{}", url)).map_err(|_| err))?;
+        let url = Url::parse(url)
+            .or_else(|err| Url::parse(&format!("https://{}", url)).map_err(|_| err))?;
 
         // connect
         let mut connector = SslConnector::builder(SslMethod::tls())?;

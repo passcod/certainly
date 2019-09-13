@@ -312,10 +312,12 @@ fn distinguished(name: &str) -> DistinguishedName {
 
 fn base_cert(name: &str, algo: Algo) -> Result<CertificateParams, Ernum> {
     use chrono::Datelike;
+    use rand::Rng;
 
     let now = Utc::now();
     let mut params = CertificateParams::default();
     params.alg = algo.rcgen();
+    params.serial_number = Some(rand::thread_rng().gen());
     params.not_after = now.with_year(now.year() + 10).expect("Ten years in the future doesn't exist according to Chrono. Not a certainly bug.");
     params.not_before = now;
     params.distinguished_name = distinguished(name);

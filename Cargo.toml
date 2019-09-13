@@ -34,3 +34,4 @@ openssl-probe = { version = "0.1.2", optional = true }
 url = { version = "2.1.0", optional = true }
 ring = "0.16.9"
 rcgen = { version = "0.6.0", features = ["pem", "x509-parser"] }
+rand = "0.7.0"

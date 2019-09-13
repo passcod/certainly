@@ -300,11 +300,11 @@ lazy_static::lazy_static! {
 
 const OID_ORG_UNIT: &'static [u64] = &[2, 5, 4, 11];
 
-fn distinguished(org: &str, name: &str) -> DistinguishedName {
+fn distinguished(name: &str) -> DistinguishedName {
     use rcgen::DnType;
     let mut dn = DistinguishedName::new();
     dn.push(DnType::CountryName, "ZZ");
-    dn.push(DnType::OrganizationName, format!("Certainly {}", org));
+    dn.push(DnType::OrganizationName, "Certainly");
     dn.push(DnType::from_oid(OID_ORG_UNIT), format!("{} from {}", name, HOSTNAME.to_string_lossy()));
     dn.push(DnType::CommonName, name);
     dn
@@ -318,7 +318,7 @@ fn base_cert(name: &str, algo: Algo) -> Result<CertificateParams, Ernum> {
     params.alg = algo.rcgen();
     params.not_after = now.with_year(now.year() + 10).expect("Ten years in the future doesn't exist according to Chrono. Not a certainly bug.");
     params.not_before = now;
-    params.distinguished_name = distinguished("Subjecting", name);
+    params.distinguished_name = distinguished(name);
     params.key_pair = Some(algo.key()?);
     Ok(params)
 }

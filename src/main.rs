@@ -446,7 +446,8 @@ mod inspect {
 
     fn parse_cert_time(time: &Asn1TimeRef) -> Result<DateTime<Utc>, Ernum> {
         let timestr = format!("{}", time);
-        let parsed = NaiveDateTime::parse_from_str(&timestr, "%b %_d %H:%M:%S %Y GMT")?;
+        let parsed = NaiveDateTime::parse_from_str(&timestr, "%b %_d %H:%M:%S.%f %Y GMT")
+            .or_else(|_| NaiveDateTime::parse_from_str(&timestr, "%b %_d %H:%M:%S %Y GMT"))?;
         Ok(Utc::today().timezone().from_utc_datetime(&parsed))
     }
 

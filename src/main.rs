@@ -374,6 +374,18 @@ fn makeca(name: &str, algo: Algo) -> Result<Certificate, Ernum> {
     Certificate::from_params(params).map_err(Into::into)
 }
 
+const OID_BASIC: &[u64] = &[2, 5, 29, 19];
+
+fn not_ca() -> CustomExtension {
+    let der = yasna::construct_der(|writer| {
+        writer.write_sequence(|writer| {
+            writer.next().write_bool(false);
+        });
+    });
+
+    CustomExtension::from_oid_content(OID_BASIC, der)
+}
+
 fn create(
     domains: &[&str],
     _ca: Option<&Certificate>,
@@ -385,6 +397,7 @@ fn create(
     let name = domains[0];
     let mut params = base_cert(name, algo)?;
 
+    params.custom_extensions.push(not_ca());
     params.custom_extensions.push(key_usage(false));
     params.extended_key_usages.push(if is_client {
         ExtendedKeyUsagePurpose::ClientAuth

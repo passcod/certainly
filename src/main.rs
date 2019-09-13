@@ -414,7 +414,6 @@ fn create(
             }
         })
         .collect();
-    // TODO? add issuer name?
 
     Ok((name.into(), Certificate::from_params(params)?))
 }

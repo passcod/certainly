@@ -29,7 +29,7 @@ Domains:
 
 ## Install
 
-There are two versions of certainly: one with RSA and `--inspect` support that requires OpenSSL, and the other without and no requirement on OpenSSL.
+There are two versions of certainly: one with RSA support that requires OpenSSL, and the other without and no requirement on OpenSSL.
 
 ### Binary download (Windows, Linux, macOS)
 
@@ -39,9 +39,7 @@ Binaries are available [through GitHub Releases](https://github.com/passcod/cert
 
 With Cargo: `cargo install certainly`
 
-To build without RSA and `--inspect` support: `cargo install certainly --default-features=false`
-
-To build with RSA support only: `cargo install certainly --default-features=false --features=rsa`
+To build without RSA support: `cargo install certainly --default-features=false`
 
 ### From package manager
 
@@ -63,7 +61,7 @@ Accepting contributions for more!
  - `--std` and `--reverse-std` will output both key and certificate to STDOUT instead of writing files.
  - `--double-std` will output the key to STDERR and the certificate to STDOUT instead, so redirection can be used to write or pipe files where needed efficiently. Take care of checking the key is actually formatted properly and not an error message though!
 
- - `--inspect` outputs terse information about the passed certificate file (or url) and exits (when feature is compiled in).
+ - `--inspect` outputs terse information about the passed certificate file (or url) and exits.
 
  - `--make-ca` creates a key/certificate pair suitable for issuing instead. Use with `--ca`.
  - `--ca NAME` signs a certificate with a CA pair instead of self-signing. Provide only the common filename, without the `.crt` and `.key` extensions.

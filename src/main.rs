@@ -5,22 +5,27 @@
 
 use chrono::{format::ParseError as ChronoParseError, Utc};
 use clap::{App, Arg, ArgGroup};
+use nom::Err as NomErr;
 use rcgen::{
     Certificate, CertificateParams, CustomExtension, DistinguishedName, KeyPair, RcgenError,
     SignatureAlgorithm,
 };
+use rustls_connector::{rustls, webpki, HandshakeError, RustlsConnector};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::{io, path::PathBuf};
+use time::Tm;
+use url::ParseError as UrlParseError;
+use x509_parser::{
+    error::{PEMError, X509Error},
+    parse_x509_der,
+    pem::pem_to_der,
+    X509Certificate,
+};
 
 #[cfg(feature = "rsa")]
 use openssl::error::ErrorStack;
-#[cfg(feature = "inspect")]
-use openssl::ssl::HandshakeError;
-#[cfg(feature = "inspect")]
-use std::net::TcpStream;
-#[cfg(feature = "inspect")]
-use url::ParseError as UrlParseError;
 
 #[derive(Debug)]
 pub(crate) enum Ernum {
@@ -29,10 +34,10 @@ pub(crate) enum Ernum {
     #[cfg(feature = "rsa")]
     OpenSSL(ErrorStack),
     Rcgen(RcgenError),
-    #[cfg(feature = "inspect")]
     Tls(HandshakeError<TcpStream>),
-    #[cfg(feature = "inspect")]
     Url(UrlParseError),
+    X509(NomErr<X509Error>),
+    Pem(NomErr<PEMError>),
     Other(String),
 }
 
@@ -55,7 +60,6 @@ impl From<RcgenError> for Ernum {
     }
 }
 
-#[cfg(feature = "inspect")]
 impl From<HandshakeError<TcpStream>> for Ernum {
     fn from(err: HandshakeError<TcpStream>) -> Self {
         Ernum::Tls(err)
@@ -68,7 +72,18 @@ impl From<ChronoParseError> for Ernum {
     }
 }
 
-#[cfg(feature = "inspect")]
+impl From<NomErr<X509Error>> for Ernum {
+    fn from(err: NomErr<X509Error>) -> Self {
+        Ernum::X509(err)
+    }
+}
+
+impl From<NomErr<PEMError>> for Ernum {
+    fn from(err: NomErr<PEMError>) -> Self {
+        Ernum::Pem(err)
+    }
+}
+
 impl From<UrlParseError> for Ernum {
     fn from(err: UrlParseError) -> Self {
         Ernum::Url(err)
@@ -90,6 +105,12 @@ fn main() -> Result<(), Ernum> {
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_HOMEPAGE"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
+        .arg(
+            Arg::with_name("inspect")
+                .long("inspect")
+                .value_name("CERTIFICATE")
+                .help("Show information about a certificate"),
+        )
         .arg(
             Arg::with_name("make-ca")
                 .long("make-ca")
@@ -145,14 +166,6 @@ fn main() -> Result<(), Ernum> {
             .help("Create an RSA 4096-bit key and certificate"),
     );
 
-    #[cfg(feature = "inspect")]
-    let args = args.arg(
-        Arg::with_name("inspect")
-            .long("inspect")
-            .value_name("CERTIFICATE")
-            .help("Show information about a certificate"),
-    );
-
     let args = args
         .group(ArgGroup::with_name("algo").args(if cfg!(feature = "rsa") {
             &["ecdsa", "ed25519", "rsa"]
@@ -162,12 +175,7 @@ fn main() -> Result<(), Ernum> {
         .get_matches();
 
     if args.is_present("inspect") {
-        if cfg!(feature = "inspect") {
-            return inspect::inspect(args.value_of("inspect").unwrap().into());
-        } else {
-            eprintln!("Inspect support is not available, abort");
-            std::process::exit(4);
-        }
+        return inspect(args.value_of("inspect").unwrap().into());
     }
 
     if !(args.is_present("DOMAIN") || args.is_present("make-ca")) {
@@ -434,144 +442,200 @@ fn load_key(filepath: PathBuf) -> Result<KeyPair, Ernum> {
     KeyPair::from_pem(&buf).map_err(Into::into)
 }
 
-#[cfg(not(feature = "inspect"))]
-mod inspect {
-    pub(crate) fn inspect(_: std::path::PathBuf) -> Result<(), super::Ernum> {
-        unreachable!()
+pub struct NoCertificateVerification;
+
+impl rustls::ServerCertVerifier for NoCertificateVerification {
+    fn verify_server_cert(
+        &self,
+        _roots: &rustls::RootCertStore,
+        _presented_certs: &[rustls::Certificate],
+        _dns_name: webpki::DNSNameRef<'_>,
+        _ocsp: &[u8],
+    ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+        Ok(rustls::ServerCertVerified::assertion())
     }
 }
 
-#[cfg(feature = "inspect")]
-mod inspect {
-    use super::Ernum;
-    use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-    use openssl::asn1::Asn1TimeRef;
-    use openssl::ssl::{SslConnector, SslMethod, SslVerifyMode};
-    use openssl::x509::X509;
-    use std::fs::File;
-    use std::io::Read;
-    use std::{net::TcpStream, path::PathBuf};
-    use url::Url;
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ParsedCert {
+    issuer: String,
+    subject: String,
+    not_before: Tm,
+    not_after: Tm,
+    names: Vec<(NameType, String)>,
+}
 
-    fn load_cert(filepath: PathBuf) -> Result<X509, Ernum> {
-        let mut file = File::open(filepath)?;
-        let mut buf = vec![];
-        file.read_to_end(&mut buf)?;
-        Ok(X509::from_pem(&buf)?)
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum NameType {
+    Email,
+    Dns,
+    Ipv4,
+    Ipv6,
+    Uri,
+    Other,
+}
+
+const OID_SUBJECT_ALT_NAME: &str = "2.5.29.17";
+
+impl ParsedCert {
+    fn parse<'a>(cert: X509Certificate<'a>) -> Self {
+        let tbs = cert.tbs_certificate;
+
+        let mut san = None;
+        for ext in tbs.extensions {
+            if ext.oid == OID_SUBJECT_ALT_NAME.parse().unwrap() {
+                san = Some(ext.value);
+                break;
+            }
+        }
+
+        dbg!(&san);
+
+        Self {
+            issuer: tbs.issuer.to_string(),
+            subject: tbs.subject.to_string(),
+            not_before: tbs.validity.not_before,
+            not_after: tbs.validity.not_after,
+            names: Vec::new(),
+        }
     }
 
-    fn load_remote_cert(url: &str) -> Result<X509, Ernum> {
+    pub fn load_local(filepath: PathBuf) -> Result<Self, Ernum> {
+        let mut file = File::open(filepath)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+
+        let (_, der) = pem_to_der(&buf)?;
+        let (_, cert) = parse_x509_der(&der.contents)?;
+        Ok(Self::parse(cert))
+    }
+
+    pub fn load_remote(url: &str) -> Result<Vec<Self>, Ernum> {
+        use rustls::Session;
+        use std::sync::Arc;
+        use url::Url;
+
         // parse url. try really hard
         let url = Url::parse(url)
             .or_else(|err| Url::parse(&format!("https://{}", url)).map_err(|_| err))?;
 
+        // disable verification
+        let mut config = rustls::ClientConfig::new();
+        config
+            .dangerous()
+            .set_certificate_verifier(Arc::new(NoCertificateVerification));
+        let connector = RustlsConnector::new(config);
+
         // connect
-        let mut connector = SslConnector::builder(SslMethod::tls())?;
-        connector.set_verify(SslVerifyMode::NONE);
-        let connector = connector.build();
         let stream = TcpStream::connect(url.socket_addrs(|| Some(443))?[0])?;
         let stream = connector.connect(url.host_str().unwrap(), stream)?;
 
-        // get cert
-        stream
-            .ssl()
-            .peer_certificate()
-            .ok_or_else(|| "Peer did not present certificate".into())
+        // get certs
+        let chain = stream
+            .sess
+            .get_peer_certificates()
+            .ok_or_else(|| Ernum::Other("no certificate in chain".into()))?;
+
+        // decode certs
+        let mut certs = Vec::with_capacity(chain.len());
+        for raw in chain {
+            let (_, cert) = parse_x509_der(&raw.0)?;
+            certs.push(ParsedCert::parse(cert));
+        }
+
+        Ok(certs)
     }
+}
 
-    fn parse_cert_time(time: &Asn1TimeRef) -> Result<DateTime<Utc>, Ernum> {
-        let timestr = format!("{}", time);
-        let parsed = NaiveDateTime::parse_from_str(&timestr, "%b %_d %H:%M:%S.%f %Y GMT")
-            .or_else(|_| NaiveDateTime::parse_from_str(&timestr, "%b %_d %H:%M:%S %Y GMT"))?;
-        Ok(Utc::today().timezone().from_utc_datetime(&parsed))
-    }
-
-    pub(crate) fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
-        let maybe_url = filepath.clone();
-        let maybe_url = maybe_url.to_str().unwrap();
-        let cert = if filepath.starts_with("https://") {
-            load_remote_cert(maybe_url)?
-        } else {
-            match load_cert(filepath) {
-                Ok(cert) => cert,
-                Err(filerr) => match load_remote_cert(maybe_url) {
-                    Ok(cert) => cert,
-                    Err(err) => {
-                        eprintln!("{:?}", filerr);
-                        return Err(err);
-                    }
-                },
-            }
-        };
-
-        let mut cname = None;
-        let mut subjname: Vec<String> = vec![];
-        for subj in cert.subject_name().entries() {
-            let name = subj.object().nid().long_name()?;
-            let data = subj.data().as_utf8()?;
-            subjname.push(name.to_string());
-            subjname.push(data.to_string());
-            if name == "commonName" {
-                cname = Some(data);
-            }
-        }
-
-        let mut iname = None;
-        let mut issuname: Vec<String> = vec![];
-        for issu in cert.issuer_name().entries() {
-            let name = issu.object().nid().long_name()?;
-            let data = issu.data().as_utf8()?;
-            issuname.push(name.to_string());
-            issuname.push(data.to_string());
-            if name == "commonName" {
-                iname = Some(data);
-            }
-        }
-
-        if subjname == issuname {
-            println!("Self-signed certificate");
-        } else if let Some(name) = iname {
-            println!("Certificate signed by {}", name);
-        } else {
-            println!("Certificate (signed)");
-        }
-
-        println!("Created on:   {}", parse_cert_time(cert.not_before())?);
-        let expiry = parse_cert_time(cert.not_after())?;
-        let expired = Utc::now() > expiry;
-        println!("Expire{} on:   {}", if expired { 'd' } else { 's' }, expiry);
-
-        match cert.subject_alt_names() {
-            None => {
-                if let Some(name) = cname {
-                    println!("Domains:\n - {}", name);
-                } else {
-                    println!("No domains???");
+fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
+    let mut is_remote = false;
+    let maybe_url = filepath.clone();
+    let maybe_url = maybe_url.to_str().unwrap();
+    let mut certs = if filepath.starts_with("https://") {
+        is_remote = true;
+        ParsedCert::load_remote(maybe_url)?
+    } else {
+        match ParsedCert::load_local(filepath) {
+            Ok(cert) => vec![cert],
+            Err(filerr) => match ParsedCert::load_remote(maybe_url) {
+                Ok(certs) => {
+                    is_remote = true;
+                    certs
                 }
-            }
-            Some(alts) => {
-                println!("Domains:");
-                for alt in alts {
-                    if let Some(dns) = alt.dnsname() {
-                        println!(" DNS: {}", dns);
-                    } else if let Some(ip) = alt.ipaddress() {
-                        use std::convert::TryFrom;
-                        use std::net::{Ipv4Addr, Ipv6Addr};
-
-                        if let Ok(octets) = <[u8; 16]>::try_from(ip) {
-                            println!(" IPV6: {}", Ipv6Addr::from(octets));
-                        } else if let Ok(octets) = <[u8; 4]>::try_from(ip) {
-                            println!(" IPV4: {}", Ipv4Addr::from(octets));
-                        }
-                    } else if let Some(uri) = alt.uri() {
-                        println!(" URI: {}", uri);
-                    } else if let Some(email) = alt.email() {
-                        println!(" EMAIL: {}", email);
-                    }
+                Err(err) => {
+                    eprintln!("{:?}", filerr);
+                    return Err(err);
                 }
-            }
-        };
+            },
+        }
+    };
 
-        Ok(())
+    let cert = certs.remove(0);
+    let rest = certs;
+
+    println!(
+        "{} {}",
+        if is_remote { "[Remote]" } else { "[Local] " },
+        cert.subject
+    );
+    println!("Issuer:  {}", cert.issuer);
+
+    if !rest.is_empty() {
+        println!("\nChain:");
     }
+    for c in &rest {
+        println!(" Subject: {}\n Issuer:  {}\n", c.subject, c.issuer);
+    }
+
+    if rest.is_empty() {
+        println!("");
+    }
+    println!("Created on:   {}", cert.not_before.asctime());
+    let expired = time::now() > cert.not_after;
+    println!(
+        "Expire{} on:   {}",
+        if expired { 'd' } else { 's' },
+        cert.not_after.asctime()
+    );
+
+    if !cert.names.is_empty() {
+        println!("\nDomains:");
+    }
+
+    let mut others = 0;
+    for (kind, name) in cert.names {
+        match kind {
+            NameType::Dns => println!(" DNS: {}", name),
+            NameType::Ipv4 => println!(" IPV4: {}", name),
+            NameType::Ipv6 => println!(" IPV4: {}", name),
+            /*NameType::Ip => {
+                use std::convert::TryFrom;
+                use std::net::{Ipv4Addr, Ipv6Addr};
+
+                if let Ok(octets) = <[u8; 16]>::try_from(ip) {
+                    println!(" IPV6: {}", Ipv6Addr::from(octets));
+                } else if let Ok(octets) = <[u8; 4]>::try_from(ip) {
+                    println!(" IPV4: {}", Ipv4Addr::from(octets));
+                }
+            },*/
+            NameType::Email => println!(" EMAIL: {}", name),
+            NameType::Uri => println!(" URL: {}", name),
+            _ => {
+                others += 1;
+            }
+        }
+    }
+
+    if others > 0 {
+        println!(" ({} others of unknown type)", others);
+    }
+
+    print!("\nTo see more: $ ");
+    if is_remote {
+        println!("echo Q | openssl s_client {}:443", maybe_url);
+    } else {
+        println!("openssl x509 -text -in {}", maybe_url);
+    }
+
+    Ok(())
 }

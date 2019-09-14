@@ -23,6 +23,7 @@ use x509_parser::{
     pem::pem_to_der,
     X509Certificate,
 };
+use yasna::Tag;
 
 #[cfg(feature = "rsa")]
 use openssl::error::ErrorStack;
@@ -34,7 +35,7 @@ pub(crate) enum Ernum {
     #[cfg(feature = "rsa")]
     OpenSSL(ErrorStack),
     Rcgen(RcgenError),
-    Tls(HandshakeError<TcpStream>),
+    Tls(Box<HandshakeError<TcpStream>>),
     Url(UrlParseError),
     X509(NomErr<X509Error>),
     Pem(NomErr<PEMError>),
@@ -62,7 +63,7 @@ impl From<RcgenError> for Ernum {
 
 impl From<HandshakeError<TcpStream>> for Ernum {
     fn from(err: HandshakeError<TcpStream>) -> Self {
-        Ernum::Tls(err)
+        Ernum::Tls(Box::new(err))
     }
 }
 
@@ -462,23 +463,22 @@ struct ParsedCert {
     subject: String,
     not_before: Tm,
     not_after: Tm,
-    names: Vec<(NameType, String)>,
+    names: Vec<GeneralName>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-enum NameType {
-    Email,
-    Dns,
-    Ipv4,
-    Ipv6,
-    Uri,
-    Other,
+enum GeneralName {
+    Email(String),
+    Dns(String),
+    Ip(Vec<u8>),
+    Uri(String),
+    Unknown,
 }
 
 const OID_SUBJECT_ALT_NAME: &str = "2.5.29.17";
 
 impl ParsedCert {
-    fn parse<'a>(cert: X509Certificate<'a>) -> Self {
+    fn parse(cert: X509Certificate<'_>) -> Self {
         let tbs = cert.tbs_certificate;
 
         let mut san = None;
@@ -489,14 +489,33 @@ impl ParsedCert {
             }
         }
 
-        dbg!(&san);
+        let names = if let Some(san) = san {
+            yasna::parse_ber(&san, |reader| {
+                reader.collect_sequence_of(|reader| {
+                    let tagged = reader.read_tagged_der()?;
+                    Ok(if tagged.tag() == Tag::context(1) {
+                        GeneralName::Email(std::str::from_utf8(tagged.value()).unwrap().into())
+                    } else if tagged.tag() == Tag::context(2) {
+                        GeneralName::Dns(std::str::from_utf8(tagged.value()).unwrap().into())
+                    } else if tagged.tag() == Tag::context(6) {
+                        GeneralName::Uri(std::str::from_utf8(tagged.value()).unwrap().into())
+                    } else if tagged.tag() == Tag::context(7) {
+                        GeneralName::Ip(tagged.value().into())
+                    } else {
+                        GeneralName::Unknown
+                    })
+                })
+            }).unwrap_or(Vec::new())
+        } else {
+            Vec::new()
+        };
 
         Self {
             issuer: tbs.issuer.to_string(),
             subject: tbs.subject.to_string(),
             not_before: tbs.validity.not_before,
             not_after: tbs.validity.not_after,
-            names: Vec::new(),
+            names,
         }
     }
 
@@ -540,7 +559,7 @@ impl ParsedCert {
         let mut certs = Vec::with_capacity(chain.len());
         for raw in chain {
             let (_, cert) = parse_x509_der(&raw.0)?;
-            certs.push(ParsedCert::parse(cert));
+            certs.push(Self::parse(cert));
         }
 
         Ok(certs)
@@ -588,7 +607,7 @@ fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
     }
 
     if rest.is_empty() {
-        println!("");
+        println!();
     }
     println!("Created on:   {}", cert.not_before.asctime());
     let expired = time::now() > cert.not_after;
@@ -603,23 +622,22 @@ fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
     }
 
     let mut others = 0;
-    for (kind, name) in cert.names {
-        match kind {
-            NameType::Dns => println!(" DNS: {}", name),
-            NameType::Ipv4 => println!(" IPV4: {}", name),
-            NameType::Ipv6 => println!(" IPV4: {}", name),
-            /*NameType::Ip => {
+    for name in cert.names {
+        match name {
+            GeneralName::Dns(dns) => println!(" DNS: {}", dns),
+            GeneralName::Ip(ip) => {
                 use std::convert::TryFrom;
                 use std::net::{Ipv4Addr, Ipv6Addr};
 
-                if let Ok(octets) = <[u8; 16]>::try_from(ip) {
+                let bytes: &[u8] = &ip;
+                if let Ok(octets) = <[u8; 16]>::try_from(bytes) {
                     println!(" IPV6: {}", Ipv6Addr::from(octets));
-                } else if let Ok(octets) = <[u8; 4]>::try_from(ip) {
+                } else if let Ok(octets) = <[u8; 4]>::try_from(bytes) {
                     println!(" IPV4: {}", Ipv4Addr::from(octets));
                 }
-            },*/
-            NameType::Email => println!(" EMAIL: {}", name),
-            NameType::Uri => println!(" URL: {}", name),
+            },
+            GeneralName::Email(mail) => println!(" EMAIL: {}", mail),
+            GeneralName::Uri(uri) => println!(" URL: {}", uri),
             _ => {
                 others += 1;
             }
@@ -627,7 +645,7 @@ fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
     }
 
     if others > 0 {
-        println!(" ({} others of unknown type)", others);
+        println!(" ({} of other types)", others);
     }
 
     print!("\nTo see more: $ ");

@@ -20,7 +20,7 @@ travis-ci = { repository = "passcod/certainly" }
 lto = true
 
 [features]
-default = ["rsa"]
+#default = ["rsa"]
 rsa = ["openssl", "openssl-probe"]
 
 [dependencies]
@@ -33,7 +33,7 @@ nom = "5.0.1"
 openssl = { version = "0.10.24", features = ["vendored"], optional = true }
 openssl-probe = { version = "0.1.2", optional = true }
 rand = "0.7.0"
-rcgen = { version = "0.6.0", features = ["pem", "x509-parser"] }
+rcgen = { version = "0.7.0", features = ["pem", "x509-parser"] }
 ring = "0.16.9"
 rustls-connector = { version = "0.8.0", features = ["dangerous_configuration"] }
 time = "0.1.42"

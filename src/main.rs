@@ -23,7 +23,6 @@ use x509_parser::{
     pem::pem_to_der,
     X509Certificate,
 };
-use yasna::Tag;
 
 #[cfg(feature = "rsa")]
 use openssl::error::ErrorStack;
@@ -401,7 +400,9 @@ fn create(
     is_client: bool,
     algo: Algo,
 ) -> Result<(String, Certificate), Ernum> {
-    use rcgen::{CidrSubnet, ExtendedKeyUsagePurpose, SanType};
+    use rcgen::{ExtendedKeyUsagePurpose, SanType};
+    use std::net::IpAddr;
+    use std::str::FromStr;
 
     let name = domains[0];
     let mut params = base_cert(name, algo)?;
@@ -416,8 +417,8 @@ fn create(
     params.subject_alt_names = domains
         .iter()
         .map(|dom| {
-            if let Ok(cidr) = CidrSubnet::from_str(dom) {
-                SanType::IpAddress(cidr)
+            if let Ok(ip) = IpAddr::from_str(dom) {
+                SanType::IpAddress(ip)
             } else {
                 SanType::DnsName(dom.to_string())
             }
@@ -489,26 +490,30 @@ impl ParsedCert {
             }
         }
 
-        let names = if let Some(san) = san {
-            yasna::parse_ber(&san, |reader| {
-                reader.collect_sequence_of(|reader| {
-                    let tagged = reader.read_tagged_der()?;
-                    Ok(if tagged.tag() == Tag::context(1) {
-                        GeneralName::Email(std::str::from_utf8(tagged.value()).unwrap().into())
-                    } else if tagged.tag() == Tag::context(2) {
-                        GeneralName::Dns(std::str::from_utf8(tagged.value()).unwrap().into())
-                    } else if tagged.tag() == Tag::context(6) {
-                        GeneralName::Uri(std::str::from_utf8(tagged.value()).unwrap().into())
-                    } else if tagged.tag() == Tag::context(7) {
-                        GeneralName::Ip(tagged.value().into())
-                    } else {
-                        GeneralName::Unknown
+        let names = san
+            .and_then(|san| {
+                yasna::parse_ber(san, |reader| {
+                    reader.collect_sequence_of(|reader| {
+                        let tagged = reader.read_tagged_der()?;
+                        let num = tagged.tag().tag_number;
+                        Ok(match num {
+                            1 | 2 | 6 => {
+                                let val = std::str::from_utf8(tagged.value()).unwrap().into();
+                                match num {
+                                    1 => GeneralName::Email(val),
+                                    2 => GeneralName::Dns(val),
+                                    6 => GeneralName::Uri(val),
+                                    _ => unreachable!(),
+                                }
+                            }
+                            7 => GeneralName::Ip(tagged.value().into()),
+                            _ => GeneralName::Unknown,
+                        })
                     })
                 })
-            }).unwrap_or(Vec::new())
-        } else {
-            Vec::new()
-        };
+                .ok()
+            })
+            .unwrap_or_default();
 
         Self {
             issuer: tbs.issuer.to_string(),
@@ -635,7 +640,7 @@ fn inspect(filepath: PathBuf) -> Result<(), Ernum> {
                 } else if let Ok(octets) = <[u8; 4]>::try_from(bytes) {
                     println!(" IPV4: {}", Ipv4Addr::from(octets));
                 }
-            },
+            }
             GeneralName::Email(mail) => println!(" EMAIL: {}", mail),
             GeneralName::Uri(uri) => println!(" URL: {}", uri),
             _ => {

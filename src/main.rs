@@ -330,11 +330,13 @@ const OID_ORG_UNIT: &[u64] = &[2, 5, 4, 11];
 fn distinguished(name: &str) -> DistinguishedName {
     use rcgen::DnType;
     let mut dn = DistinguishedName::new();
-    dn.push(DnType::CountryName, "ZZ");
-    dn.push(DnType::OrganizationName, "Certainly");
+    dn.push(DnType::CountryName, std::env::var("CERTAINLY_C").unwrap_or("ZZ".into()));
+    dn.push(DnType::OrganizationName, std::env::var("CERTAINLY_O").unwrap_or("Certainly".into()));
     dn.push(
         DnType::from_oid(OID_ORG_UNIT),
-        format!("{} from {}", name, HOSTNAME.to_string_lossy()),
+        std::env::var("CERTAINLY_OU").unwrap_or_else(
+            |_| format!("{} from {}", name, HOSTNAME.to_string_lossy())
+        ),
     );
     dn.push(DnType::CommonName, name);
     dn

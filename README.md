@@ -29,8 +29,6 @@ Domains:
 
 ## Install
 
-There are two versions of certainly: one with RSA support that requires OpenSSL, and the other without and no requirement on OpenSSL.
-
 ### Binary download (Windows, Linux, macOS)
 
 Binaries are available [through GitHub Releases](https://github.com/passcod/certainly/releases).
@@ -38,8 +36,6 @@ Binaries are available [through GitHub Releases](https://github.com/passcod/cert
 ### From source
 
 With Cargo: `cargo install certainly`
-
-To build without RSA support: `cargo install certainly --default-features=false`
 
 ### From package manager
 
@@ -68,7 +64,7 @@ Accepting contributions for more!
 
  - `--client` creates client certificates rather than server ones.
  - `--ecdsa` creates p256r1 ECDSA certificates (default).
- - `--rsa` creates 4096-bit RSA certificates (when feature is compiled in).
+ - `--rsa` creates 4096-bit RSA certificates (**not for production use**).
  - `--ed25519` creates ED25519 certificates.
 
 See [the man page](./certainly.1.ronn) for more.

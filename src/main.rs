@@ -10,6 +10,7 @@ use rcgen::{
     Certificate, CertificateParams, CustomExtension, DistinguishedName, KeyPair, RcgenError,
     SignatureAlgorithm,
 };
+use rsa::errors::Error as RsaError;
 use rustls_connector::{rustls, webpki, HandshakeError, RustlsConnector};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
@@ -24,33 +25,22 @@ use x509_parser::{
     X509Certificate,
 };
 
-#[cfg(feature = "rsa")]
-use openssl::error::ErrorStack;
-
 #[derive(Debug)]
 pub(crate) enum Ernum {
     Chrono(ChronoParseError),
     Io(io::Error),
-    #[cfg(feature = "rsa")]
-    OpenSSL(ErrorStack),
     Rcgen(RcgenError),
     Tls(Box<HandshakeError<TcpStream>>),
     Url(UrlParseError),
     X509(NomErr<X509Error>),
     Pem(NomErr<PEMError>),
+    Rsa(RsaError),
     Other(String),
 }
 
 impl From<io::Error> for Ernum {
     fn from(err: io::Error) -> Self {
         Ernum::Io(err)
-    }
-}
-
-#[cfg(feature = "rsa")]
-impl From<ErrorStack> for Ernum {
-    fn from(err: ErrorStack) -> Self {
-        Ernum::OpenSSL(err)
     }
 }
 
@@ -90,6 +80,12 @@ impl From<UrlParseError> for Ernum {
     }
 }
 
+impl From<RsaError> for Ernum {
+    fn from(err: RsaError) -> Self {
+        Ernum::Rsa(err)
+    }
+}
+
 impl From<&'static str> for Ernum {
     fn from(err: &str) -> Self {
         Ernum::Other(err.into())
@@ -97,10 +93,6 @@ impl From<&'static str> for Ernum {
 }
 
 fn main() -> Result<(), Ernum> {
-    // Fix spurious errors because of https://github.com/rust-lang/cargo/issues/3676
-    #[cfg(feature = "rsa")]
-    openssl_probe::init_ssl_cert_env_vars();
-
     let args = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_HOMEPAGE"))
@@ -157,21 +149,13 @@ fn main() -> Result<(), Ernum> {
             Arg::with_name("ed25519")
                 .long("ed25519")
                 .help("Create an ED25519 key and certificate"),
-        );
-
-    #[cfg(feature = "rsa")]
-    let args = args.arg(
-        Arg::with_name("rsa")
-            .long("rsa")
-            .help("Create an RSA 4096-bit key and certificate"),
-    );
-
-    let args = args
-        .group(ArgGroup::with_name("algo").args(if cfg!(feature = "rsa") {
-            &["ecdsa", "ed25519", "rsa"]
-        } else {
-            &["ecdsa", "ed25519"]
-        }))
+        )
+        .arg(
+            Arg::with_name("rsa")
+                .long("rsa")
+                .help("Create an RSA 4096-bit key and certificate"),
+        )
+        .group(ArgGroup::with_name("algo").args(&["ecdsa", "ed25519", "rsa"]))
         .get_matches();
 
     if args.is_present("inspect") {
@@ -190,11 +174,6 @@ fn main() -> Result<(), Ernum> {
     } else {
         Algo::Ec
     };
-
-    if algo == Algo::Rsa && !cfg!(feature = "rsa") {
-        eprintln!("RSA support is not available, abort");
-        std::process::exit(3);
-    }
 
     let (name, cert, ca) = if args.is_present("make-ca") {
         let name: &str = args.value_of("make-ca").unwrap();
@@ -265,22 +244,64 @@ enum Algo {
     Rsa,
 }
 
-impl Algo {
-    #[cfg(feature = "rsa")]
-    fn rsa_key() -> Result<KeyPair, Ernum> {
-        use openssl::{
-            pkey::{PKey, Private},
-            rsa::Rsa,
-        };
-        let rsakey: Rsa<Private> = Rsa::generate(4096)?;
-        let pem = String::from_utf8(PKey::from_rsa(rsakey)?.private_key_to_pem_pkcs8()?)
-            .expect("OpenSSL generated bad PEM, this is not a certainly bug.");
-        KeyPair::from_pem(&pem).map_err(Into::into)
-    }
+const RSA_BITS: usize = 4096;
+const OID_RSA_ENCRYPTION: &[u64] = &[1, 2, 840, 113_549, 1, 1, 1];
 
-    #[cfg(not(feature = "rsa"))]
+impl Algo {
     fn rsa_key() -> Result<KeyPair, Ernum> {
-        unreachable!()
+        use num_bigint::{BigInt, BigUint};
+        use num_bigint_dig::{BigUint as BigUintDig, ModInverse};
+        use rand::rngs::OsRng;
+        use rsa::{PublicKey, RSAPrivateKey};
+        use std::convert::TryFrom;
+
+        let mut rng = OsRng::new().expect("no secure randomness available");
+        let key = RSAPrivateKey::new(&mut rng, RSA_BITS)?;
+
+        let modulus = key.n();
+        let public_exponent = key.e();
+        let private_exponent = key.d();
+        let first_prime = &key.primes()[0];
+        let second_prime = &key.primes()[1];
+        let first_exponent = private_exponent % (first_prime - &BigUintDig::from(1_u8));
+        let second_exponent = private_exponent % (second_prime - &BigUintDig::from(1_u8));
+        let coefficient = second_prime.mod_inverse(first_prime).unwrap();
+
+        let modulus = BigUint::from_bytes_le(&modulus.to_bytes_le());
+        let public_exponent = BigUint::from_bytes_le(&public_exponent.to_bytes_le());
+        let private_exponent = BigUint::from_bytes_le(&private_exponent.to_bytes_le());
+        let first_prime = BigUint::from_bytes_le(&first_prime.to_bytes_le());
+        let second_prime = BigUint::from_bytes_le(&second_prime.to_bytes_le());
+        let first_exponent = BigUint::from_bytes_le(&first_exponent.to_bytes_le());
+        let second_exponent = BigUint::from_bytes_le(&second_exponent.to_bytes_le());
+        let coefficient = BigInt::from_signed_bytes_le(&coefficient.to_signed_bytes_le());
+
+        let keyder = yasna::construct_der(|writer| {
+            writer.write_sequence(|writer| {
+                writer.next().write_u8(0);
+                writer.next().write_biguint(&modulus);
+                writer.next().write_biguint(&public_exponent);
+                writer.next().write_biguint(&private_exponent);
+                writer.next().write_biguint(&first_prime);
+                writer.next().write_biguint(&second_prime);
+                writer.next().write_biguint(&first_exponent);
+                writer.next().write_biguint(&second_exponent);
+                writer.next().write_bigint(&coefficient);
+            })
+        });
+
+        let pk8 = yasna::construct_der(|writer| {
+            writer.write_sequence(|writer| {
+                writer.next().write_u8(0);
+                writer.next().write_sequence(|writer| {
+                    writer.next().write_oid(&OID_RSA_ENCRYPTION.to_vec().into());
+                    writer.next().write_null();
+                });
+                writer.next().write_bytes(&keyder);
+            })
+        });
+
+        KeyPair::try_from(pk8.as_slice()).map_err(Into::into)
     }
 
     pub fn key(self) -> Result<KeyPair, Ernum> {

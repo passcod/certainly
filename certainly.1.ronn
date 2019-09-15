@@ -3,9 +3,9 @@ certainly(1) -- create self-signed certificates with ease
 
 ## SYNOPSIS
 
-certainly [`--std` | `--reverse-std` | `--double-std`] [`--rsa`] [`--ca` <name>] [`--client`] <domain> [<domain>...]
+certainly [`--std` | `--reverse-std` | `--double-std`] [`--ecdsa` | `--ed25519` | `--rsa`] [`--ca` <name>] [`--client`] <domain> [<domain>...]
 
-certainly [`--std` | `--reverse-std` | `--double-std`] [`--rsa`] `--make-ca` <name>
+certainly [`--std` | `--reverse-std` | `--double-std`] [`--ecdsa` | `--ed25519` | `--rsa`] `--make-ca` <name>
 
 certainly --inspect <certificate or url>
 
@@ -40,8 +40,14 @@ Outputs the key to STDERR, and the certificate to STDOUT. This is useful to writ
 * `--client`:
 Creates a client certificate instead of a server certificate.
 
+* `--ecdsa`:
+Generates ECDSA keys (default). Use this option in scripts when you require an ECDSA key as the default may change.
+
+* `--ed25519`:
+Generates ED25519 keys.
+
 * `--rsa`:
-Generates RSA keys instead of the default ECDSA. Key length is 4096.
+Generates RSA keys. Key length is 4096. This is slow and the RSA implementation has not been audited; do not use for production or security.
 
 * `--ca` <name>:
 Uses the certificate/key pair _<name>.crt_ and _<name>.key_ to sign the created certificate instead of self-signing.
@@ -97,9 +103,12 @@ Write a key and certificate to custom locations:
 Show some information about a certificate:
 
     $ certainly --inspect test.ninja.crt
-    Self-signed certificate
-    Created on:   2018-09-05 21:17:47 UTC
-    Expires on:   2028-09-02 21:17:47 UTC
+    [Local]  C=ZZ, O=Certainly, OU=test.ninja from kaydel-ko, CN=test.ninja
+    Issuer:  C=ZZ, O=Certainly, OU=test.ninja from kaydel-ko, CN=test.ninja
+
+    Created on:   Sun Sep 15 01:15:29 2019
+    Expires on:   Sun Sep 15 01:15:29 2029
+
     Domains:
      DNS: test.ninja
      DNS: test.green
@@ -108,27 +117,31 @@ Show some information about a certificate:
      DNS: rofl.lmao.lol
      IPV4: 1.2.3.4
 
+    To see more: $ openssl x509 -text -in test.ninja.crt
+
 Show some information about google's certificate:
 
     $ certainly --inspect google.com
-    Certificate signed by Google Internet Authority G3
-    Created on:   2018-09-18 12:34:00 UTC
-    Expires on:   2018-12-11 12:34:00 UTC
+    [Remote] C=US, ST=California, L=Mountain View, O=Google LLC, CN=*.google.com
+    Issuer:  C=US, O=Google Trust Services, CN=GTS CA 1O1
+
+    Chain:
+     Subject: C=US, O=Google Trust Services, CN=GTS CA 1O1
+     Issuer:  OU=GlobalSign Root CA - R2, O=GlobalSign, CN=GlobalSign
+
+    Created on:   Sun Aug 23 10:28:57 2019
+    Expires on:   Sun Nov 21 10:28:57 2019
+
     Domains:
      DNS: *.google.com
      DNS: *.android.com
      DNS: *.appengine.google.com
      DNS: *.cloud.google.com
+     DNS: *.crowdsource.google.com
      DNS: *.g.co
     (... many more domains ...)
 
-Use OpenSSL to view all information about a certificate:
-
-    $ openssl x509 -text -in test.wtf.crt
-    Certificate:
-        Data:
-            Version: 3 (0x2)
-        (... much more data ...)
+    To see more: $ echo Q | openssl s_client google.com:443
 
 Create a CA pair and sign a new certificate:
 
@@ -141,11 +154,16 @@ Create a CA pair and sign a new certificate:
     Writing test.party.crt
 
     $ certainly --inspect test.party.crt
-    Certificate signed by ca.test
-    Created on:   2018-09-06 01:41:25 UTC
-    Expires on:   2028-09-03 01:41:25 UTC
+    [Local]  C=ZZ, O=Certainly, OU=test.party from kaydel-ko, CN=test.party
+    Issuer:  C=ZZ, O=Certainly, OU=ca.test from kaydel-ko, CN=ca.test
+
+    Created on:   Sun Sep 15 01:20:44 2019
+    Expires on:   Sun Sep 15 01:20:44 2029
+
     Domains:
      DNS: test.party
+
+    To see more: $ openssl x509 -text -in test.party.crt
 
 ## DETAILS
 
@@ -155,20 +173,21 @@ Certificates are generated with a common subject of:
 
 * ST (State): `AA`
 
-* O (Organisation): `Certainly Subjecting`
+* O (Organisation): `Certainly`
 
-They use elliptical curve cryptography using `prime256v1`, hashed with `SHA-512`.
+They use elliptical curve cryptography using `prime256v1` hashed with `SHA-256` by default.
 
 This generates small files (easier to inspect and manipulate) and uses algorithms that are well supported by modern tools (browsers, servers, etc) while being up-to-date with security best practices.
 
 In some legacy cases, should you absolutely need to, the `--rsa` flag instead uses 4096-bit RSA keys.
+
+ED25519 keys are also available with the `--ed25519` flag, and produce even smaller keys, but such keys are not well supported by tools at time of writing.
 
 ## ENVIRONMENT VARIABLES
 
 The distinguished name details can be controlled using the following variables:
 
 * `CERTAINLY_C`
-* `CERTAINLY_ST`
 * `CERTAINLY_O`
 * `CERTAINLY_OU`
 

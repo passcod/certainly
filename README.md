@@ -8,22 +8,36 @@ Writing test.example.com.key
 Writing test.example.com.crt
 
 $ certainly --inspect test.example.com.crt
-Self-signed certificate
-Created on:   2018-09-06 01:30:45 UTC
-Expires on:   2028-09-03 01:30:45 UTC
+[Local]  C=ZZ, O=Certainly, OU=test.example.com from kaydel-ko, CN=test.example.com
+Issuer:  C=ZZ, O=Certainly, OU=test.example.com from kaydel-ko, CN=test.example.com
+
+Created on:   Sun Sep 15 01:30:14 2019
+Expires on:   Sun Sep 15 01:30:14 2029
+
 Domains:
  DNS: test.example.com
  DNS: test2.example.com
  DNS: foo.local
- IP: 10.0.200.36
+ IPV4: 10.0.200.36
+
+To see more: $ openssl x509 -text -in test.example.com.crt
 
 $ certainly --inspect twitter.com
-Certificate signed by DigiCert SHA2 High Assurance Server CA
-Created on:   2018-07-17 00:00:00 UTC
-Expires on:   2019-08-22 12:00:00 UTC
+[Remote] C=US, ST=California, L=San Francisco, O=Twitter, Inc., OU=syd2, CN=twitter.com
+Issuer:  C=US, O=DigiCert Inc, OU=www.digicert.com, CN=DigiCert SHA2 High Assurance Server CA
+
+Chain:
+ Subject: C=US, O=DigiCert Inc, OU=www.digicert.com, CN=DigiCert SHA2 High Assurance Server CA
+ Issuer:  C=US, O=DigiCert Inc, OU=www.digicert.com, CN=DigiCert High Assurance EV Root CA
+
+Created on:   Sun May 13 00:00:00 2019
+Expires on:   Sun May 10 12:00:00 2020
+
 Domains:
  DNS: twitter.com
  DNS: www.twitter.com
+
+To see more: $ echo Q | openssl s_client twitter.com:443
 ```
 
 
@@ -64,8 +78,8 @@ Accepting contributions for more!
 
  - `--client` creates client certificates rather than server ones.
  - `--ecdsa` creates p256r1 ECDSA certificates (default).
- - `--rsa` creates 4096-bit RSA certificates (**not for production use**).
  - `--ed25519` creates ED25519 certificates.
+ - `--rsa` creates 4096-bit RSA certificates (**not for production use**).
 
 See [the man page](./certainly.1.ronn) for more.
 

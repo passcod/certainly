@@ -92,11 +92,18 @@ impl From<&'static str> for Ernum {
     }
 }
 
+const SOURCES: (&str, &str) = (include_str!("../Cargo.toml"), include_str!("main.rs"));
+
 fn main() -> Result<(), Ernum> {
     let args = App::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .author(env!("CARGO_PKG_HOMEPAGE"))
         .about(env!("CARGO_PKG_DESCRIPTION"))
+        .arg(
+            Arg::with_name("source")
+                .long("source")
+                .help("Show the source!"),
+        )
         .arg(
             Arg::with_name("inspect")
                 .long("inspect")
@@ -157,6 +164,15 @@ fn main() -> Result<(), Ernum> {
         )
         .group(ArgGroup::with_name("algo").args(&["ecdsa", "ed25519", "rsa"]))
         .get_matches();
+
+    if args.is_present("source") {
+        println!(
+            "// Cargo.toml\n{}\n\n// src/main.rs\n{}",
+            SOURCES.0, SOURCES.1
+        );
+
+        return Ok(());
+    }
 
     if args.is_present("inspect") {
         return inspect(args.value_of("inspect").unwrap().into());
@@ -330,13 +346,18 @@ const OID_ORG_UNIT: &[u64] = &[2, 5, 4, 11];
 fn distinguished(name: &str) -> DistinguishedName {
     use rcgen::DnType;
     let mut dn = DistinguishedName::new();
-    dn.push(DnType::CountryName, std::env::var("CERTAINLY_C").unwrap_or_else(|_| "ZZ".into()));
-    dn.push(DnType::OrganizationName, std::env::var("CERTAINLY_O").unwrap_or_else(|_| "Certainly".into()));
+    dn.push(
+        DnType::CountryName,
+        std::env::var("CERTAINLY_C").unwrap_or_else(|_| "ZZ".into()),
+    );
+    dn.push(
+        DnType::OrganizationName,
+        std::env::var("CERTAINLY_O").unwrap_or_else(|_| "Certainly".into()),
+    );
     dn.push(
         DnType::from_oid(OID_ORG_UNIT),
-        std::env::var("CERTAINLY_OU").unwrap_or_else(
-            |_| format!("{} from {}", name, HOSTNAME.to_string_lossy())
-        ),
+        std::env::var("CERTAINLY_OU")
+            .unwrap_or_else(|_| format!("{} from {}", name, HOSTNAME.to_string_lossy())),
     );
     dn.push(DnType::CommonName, name);
     dn

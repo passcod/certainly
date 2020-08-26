@@ -1,6 +1,3 @@
-#![forbid(unsafe_code)]
-#![deny(clippy::pedantic)]
-#![deny(clippy::nursery)]
 #![allow(clippy::similar_names)]
 
 use chrono::{format::ParseError as ChronoParseError, Utc};
@@ -592,7 +589,7 @@ impl ParsedCert {
         config
             .dangerous()
             .set_certificate_verifier(Arc::new(NoCertificateVerification));
-        let connector = RustlsConnector::new(config);
+        let connector: RustlsConnector = config.into();
 
         // connect
         let stream = TcpStream::connect(url.socket_addrs(|| Some(443))?[0])?;

@@ -1,5 +1,7 @@
 # certainly
 
+[![Uses Caretaker Maintainership](https://flat.badgen.net/badge/Caretaker/Maintainership%20👥%20/purple)](https://gist.github.com/passcod/7332390db1813f9bccb07e5cf3a9649b)
+
 Handy simple tool for common certificate-related operations.
 
 ```bash
@@ -64,6 +66,8 @@ Download the deb file from GitHub Releases.
 #### Others
 
 Accepting contributions for more!
+
+This project uses [Caretaker Maintainership](./CARETAKERS.md).
 
 
 ## Options

@@ -1,6 +1,6 @@
 # certainly
 
-[![Uses Caretaker Maintainership](https://flat.badgen.net/badge/Caretaker/Maintainership%20👥%20/purple)](https://gist.github.com/passcod/7332390db1813f9bccb07e5cf3a9649b)
+***DEPRECATED: You should use [step](https://smallstep.com/cli/) instead, a much more powerful, maintained, supported, and yet just as easy to use, certificate utility.***
 
 Handy simple tool for common certificate-related operations.
 
